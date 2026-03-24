@@ -379,9 +379,9 @@ canvas { max-width:100%; }
   <!-- DATE FILTER -->
   <div class="date-bar">
     <span class="date-label">Período:</span>
-    <input type="date" id="date-from" class="date-input" value="2026-01-26">
+    <input type="date" id="date-from" class="date-input" value="">
     <span class="date-sep">→</span>
-    <input type="date" id="date-to"   class="date-input" value="2026-03-26">
+    <input type="date" id="date-to"   class="date-input" value="">
     <div class="preset-btns">
       <button class="preset" onclick="setPreset('feb')">Feb</button>
       <button class="preset" onclick="setPreset('mar')">Mar</button>
@@ -666,16 +666,38 @@ function showError(msg) {
 // ═══════════════════════════════════════════════
 //  FILTERS
 // ═══════════════════════════════════════════════
-let dateFrom = '2026-01-26', dateTo = '2026-03-26';
+let dateFrom = '', dateTo = '';
 
 function setPreset(p) {
   document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
-  const today = '2026-03-14';
-  if (p === 'feb')  { dateFrom='2026-02-01'; dateTo='2026-02-28'; }
-  if (p === 'mar')  { dateFrom='2026-03-01'; dateTo='2026-03-14'; }
-  if (p === 'all')  { dateFrom='2026-01-26'; dateTo='2026-03-14'; }
-  if (p === 'last7'){ dateFrom='2026-03-07'; dateTo='2026-03-14'; }
+
+  // Get actual data range dynamically
+  const allDates = [...RAW_MD.map(r=>r.Fecha), ...RAW_CC.map(r=>r.Fecha), ...RAW_C.map(r=>r.Fecha)]
+    .filter(Boolean).sort();
+  const minDate = allDates[0] || '2026-01-01';
+  const maxDate = allDates[allDates.length-1] || new Date().toISOString().slice(0,10);
+  const maxYear = maxDate.slice(0,4);
+  const maxMonth = maxDate.slice(5,7);
+
+  if (p === 'feb')  {
+    dateFrom = maxYear + '-02-01';
+    dateTo   = maxYear + '-02-28';
+  }
+  if (p === 'mar')  {
+    dateFrom = maxYear + '-03-01';
+    dateTo   = maxDate; // use last date with actual data
+  }
+  if (p === 'all')  {
+    dateFrom = minDate;
+    dateTo   = maxDate;
+  }
+  if (p === 'last7'){
+    const d = new Date(maxDate);
+    d.setDate(d.getDate() - 6);
+    dateFrom = d.toISOString().slice(0,10);
+    dateTo   = maxDate;
+  }
   document.getElementById('date-from').value = dateFrom;
   document.getElementById('date-to').value   = dateTo;
   applyFilter();
