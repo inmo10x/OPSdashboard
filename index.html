@@ -404,7 +404,7 @@ canvas { max-width:100%; }
 <!-- SUMMARY STRIP -->
 <div class="strip" id="strip">
   <div class="strip-item"><div class="strip-val" id="s-cash">—</div><div class="strip-lbl">Cobrado</div></div>
-  <div class="strip-item"><div class="strip-val" id="s-ventas">—</div><div class="strip-lbl">Ventas</div></div>
+  <div class="strip-item"><div class="strip-val" id="s-ventas">—</div><div class="strip-lbl">Venta Total</div></div>
   <div class="strip-item"><div class="strip-val" id="s-close">—</div><div class="strip-lbl">Close Rate</div></div>
   <div class="strip-item"><div class="strip-val" id="s-show">—</div><div class="strip-lbl">Show Rate</div></div>
 </div>
@@ -418,7 +418,8 @@ canvas { max-width:100%; }
   </div>
   <div class="kpi-row" id="kpi-row">
     <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Ventas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">pipeline</div></div>
+    <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div></div>
+    <div class="kpi gy"><div class="kpi-lbl">Ventas #</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">pipeline</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div></div>
     <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div></div>
@@ -477,7 +478,7 @@ canvas { max-width:100%; }
 //  LIVE DATA — fetched from Google Sheets CSV
 // ═══════════════════════════════════════════════
 // Google Apps Script endpoint — no CORS issues
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzDMcmbbayhBCVYT-f0BcfKCDhilWVqkhDYByklyyxVZvFeRPJOLBknXbjvPcRKXlHp/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzTzv4pgA-OlECn0M_v0X1-7qjob3QVIWYULlvriIyFdqOoBlNVpmCRxvnqBIIQHgeQ/exec';
 
 // CSV parser — handles quoted fields, \r\n, and Google Sheets export format
 function parseCSV(text) {
@@ -615,8 +616,19 @@ function transformCO(rows) {
   })).filter(r => r.Fecha);
 }
 
+function transformCL(rows) {
+  // CLOSER_LOG: used to recalculate real asistencias
+  // Asistencia real = any event that is NOT 'No Asiste' or 'Cancelada'
+  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
+  return rows.filter(r => col(r,'fecha') && col(r,'closer')).map(r => ({
+    Fecha: toDate(col(r,'fecha')),
+    Closer: col(r,'closer'),
+    Evento: (col(r,'evento') || '').toString().trim(),
+  })).filter(r => r.Fecha && r.Closer && r.Closer !== 'Closer');
+}
+
 // Global data store
-let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [];
+let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [];
 let dataLoaded = false;
 
 async function fetchAllData() {
@@ -630,6 +642,7 @@ async function fetchAllData() {
     RAW_CC = transformCC(json['CALL_CONFIRMER_LOG'] || []);
     RAW_V  = transformV(json['VENTAS'] || []);
     RAW_C  = transformCO(json['COBROS_DIARIOS'] || []);
+    RAW_CL = transformCL(json['CLOSER_LOG'] || []);
     dataLoaded = true;
 
     // Set date range from actual data
@@ -754,7 +767,9 @@ function computeStats() {
 
   // Global MD
   const totAg = md.reduce((s,r)=>s+r.Agendas,0);
-  const totAs = md.reduce((s,r)=>s+r.Asistencias,0);
+  const NO_ASISTE_G = ['no asiste','cancelada','cancelado'];
+  const clAll = RAW_CL.filter(r => inRange(r.Fecha));
+  const totAs = clAll.filter(r => !NO_ASISTE_G.includes(r.Evento.toLowerCase())).length;
   const totCi = md.reduce((s,r)=>s+r.Cierres,0);
   const totCash = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
@@ -762,15 +777,25 @@ function computeStats() {
   const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
 
   // Per closer
-  const closers = ['Ignacio','Sebastian','Karim','Guillermo'];
+  // Real asistencias from CLOSER_LOG: any event that is NOT 'No Asiste' or 'Cancelada'
+  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
+  const cl = RAW_CL.filter(r => inRange(r.Fecha));
+
+  const closerNames = [...new Set([...md.map(r=>r.Closer), ...cl.map(r=>r.Closer)])].filter(Boolean);
+  const closers = ['Ignacio','Sebastian','Karim','Guillermo'].filter(c => closerNames.includes(c))
+    .concat(closerNames.filter(c => !['Ignacio','Sebastian','Karim','Guillermo'].includes(c)));
+
   const byCloser = {};
   closers.forEach(c => {
-    const rows = md.filter(r=>r.Closer===c);
+    const rows  = md.filter(r=>r.Closer===c);
     const coRows = co.filter(r=>r.Closer===c);
     const vRows  = v.filter(r=>r.Closer===c);
+    const clRows = cl.filter(r=>r.Closer===c);
+    // Real asistencias: events that are not No Asiste or Cancelada
+    const realAs = clRows.filter(r => !NO_ASISTE.includes(r.Evento.toLowerCase())).length;
     byCloser[c] = {
       ag: rows.reduce((s,r)=>s+r.Agendas,0),
-      as: rows.reduce((s,r)=>s+r.Asistencias,0),
+      as: realAs,
       ci: rows.reduce((s,r)=>s+r.Cierres,0),
       se: rows.reduce((s,r)=>s+r.Seguimientos,0),
       cash: coRows.reduce((s,r)=>s+r.Monto,0),
@@ -834,7 +859,7 @@ function renderStrip(s) {
   const showRate = pct(s.totAs, s.totAg);
   const closeRate = pct(s.totCi, s.totAs);
   document.getElementById('s-cash').textContent    = fmtMoney(s.totCash);
-  document.getElementById('s-ventas').textContent  = s.v.length;
+  document.getElementById('s-ventas').textContent  = fmtMoney(s.totVenta);
   document.getElementById('s-close').textContent   = closeRate+'%';
   document.getElementById('s-show').textContent    = showRate+'%';
 }
@@ -843,6 +868,8 @@ function renderKPIs(s) {
   const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
   const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
   document.getElementById('k-cash').textContent    = fmtMoney(s.totCash);
+  document.getElementById('k-venta-total').textContent = fmtMoney(s.totVenta);
+  document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
   document.getElementById('k-ventas').textContent  = s.v.length;
   document.getElementById('k-ventas-sub').textContent = fmtMoney(s.totVenta)+' pipeline';
   document.getElementById('k-agendas').textContent = s.totAg;
@@ -949,8 +976,9 @@ function renderClosers(s) {
         <span class="cbadge ${b.cls}">${b.txt}</span>
         <span class="chevron">▼</span>
       </div>
-      <div class="cstats">
+      <div class="cstats" style="grid-template-columns:repeat(4,1fr)">
         <div class="cs"><div class="cs-val">${d.ag}</div><div class="cs-lbl">Agendas</div></div>
+        <div class="cs"><div class="cs-val">${d.as}</div><div class="cs-lbl">Asistencias</div></div>
         <div class="cs"><div class="cs-val">${d.ci}</div><div class="cs-lbl">Cierres</div></div>
         <div class="cs"><div class="cs-val" style="color:${totCash>0?'var(--gold-deep)':'var(--g3)'}">${totCash>0?fmtMoney(totCash):'$0'}</div><div class="cs-lbl">Cash</div></div>
       </div>
