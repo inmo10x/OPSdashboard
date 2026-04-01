@@ -385,6 +385,7 @@ canvas { max-width:100%; }
     <div class="preset-btns">
       <button class="preset" onclick="setPreset('feb')">Feb</button>
       <button class="preset" onclick="setPreset('mar')">Mar</button>
+      <button class="preset" onclick="setPreset('abr')">Abr</button>
       <button class="preset" onclick="setPreset('all')">Todo</button>
       <button class="preset" onclick="setPreset('last7')">7d</button>
     </div>
@@ -708,21 +709,28 @@ function setPreset(p) {
   const minDate = allDates[0] || '2026-01-01';
   const maxDate = allDates[allDates.length-1] || new Date().toISOString().slice(0,10);
   const maxYear = maxDate.slice(0,4);
-  const maxMonth = maxDate.slice(5,7);
 
-  if (p === 'feb')  {
+  function lastDayOf(year, month) {
+    return new Date(year, month, 0).toISOString().slice(0,10);
+  }
+
+  if (p === 'feb') {
     dateFrom = maxYear + '-02-01';
-    dateTo   = maxYear + '-02-28';
+    dateTo   = lastDayOf(parseInt(maxYear), 2);
   }
-  if (p === 'mar')  {
+  if (p === 'mar') {
     dateFrom = maxYear + '-03-01';
-    dateTo   = maxDate; // use last date with actual data
+    dateTo   = lastDayOf(parseInt(maxYear), 3);
   }
-  if (p === 'all')  {
+  if (p === 'abr') {
+    dateFrom = maxYear + '-04-01';
+    dateTo   = lastDayOf(parseInt(maxYear), 4);
+  }
+  if (p === 'all') {
     dateFrom = minDate;
     dateTo   = maxDate;
   }
-  if (p === 'last7'){
+  if (p === 'last7') {
     const d = new Date(maxDate);
     d.setDate(d.getDate() - 6);
     dateFrom = d.toISOString().slice(0,10);
@@ -872,13 +880,14 @@ function renderAll() {
   renderStrip(s);
   renderKPIs(s);
   renderRangeLabel();
+  renderTipo(s);
   renderCashChart(s);
   renderFunnelChart(s);
   renderClosers(s);
   renderRatesChart(s);
   renderConfirmer(s);
-  renderVentas(s);
-  renderTipo(s);
+  // renderVentas only when on ventas page
+  if (document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
   renderInsights(s);
 }
 
@@ -1165,14 +1174,19 @@ function renderVentas(s) {
 
   // Flujos proyectados desde PLAN_CUOTAS
   const todayStr = new Date().toISOString().slice(0,10);
-  const futuros = RAW_PC
-    .filter(r => r.Estado !== 'Pagado' && r.FechaVenc >= todayStr)
+  // Debug info visible in page
+  const debugEl = document.getElementById('flujos-list');
+  if (debugEl) debugEl.innerHTML = '<div style="font-size:.65rem;color:var(--g3);padding:8px 0;">Cargando... PLAN_CUOTAS: '+RAW_PC.length+' filas | Muestra: '+(RAW_PC.length>0?JSON.stringify(RAW_PC[0]).slice(0,120):'vacío')+'</div>';
+
+  const pendientes = RAW_PC
+    .filter(r => {
+      const est = (r.Estado||'').toLowerCase();
+      return est !== 'pagado';
+    })
     .sort((a,b) => a.FechaVenc.localeCompare(b.FechaVenc));
 
-  const pastVenc = RAW_PC
-    .filter(r => r.Estado !== 'Pagado' && r.FechaVenc < todayStr)
-    .sort((a,b) => b.FechaVenc.localeCompare(a.FechaVenc));
-
+  const pastVenc = pendientes.filter(r => r.FechaVenc < todayStr);
+  const futuros  = pendientes.filter(r => r.FechaVenc >= todayStr);
   const allFlujos = [...pastVenc, ...futuros];
   const maxF = allFlujos.length ? Math.max(...allFlujos.map(r=>r.Monto)) : 1;
 
@@ -1359,6 +1373,10 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   el.classList.add('active');
   window.scrollTo(0,0);
+  if (id === 'ventas' && dataLoaded) {
+    const s = computeStats();
+    renderVentas(s);
+  }
 }
 
 function toggleCloser(name) {
