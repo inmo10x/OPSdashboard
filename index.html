@@ -351,9 +351,9 @@ canvas { max-width:100%; }
 <body>
 
 <!-- HEADER -->
-<div id="loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:14px;">
+<div id="loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:14px;background:#fff;">
   <div style="width:32px;height:32px;border:3px solid #e2ddd4;border-top-color:#a8832a;border-radius:50%;animation:spin .8s linear infinite;"></div>
-  <div style="font-family:'DM Sans',sans-serif;font-size:.72rem;color:#9a978f;letter-spacing:.06em;">Cargando datos...</div>
+  <div style="font-family:'DM Sans',sans-serif;font-size:.72rem;color:#9a978f;letter-spacing:.06em;">Cargando datos en vivo...</div>
 </div>
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <div id="error-banner" style="display:none;background:#f5e8e4;border-bottom:2px solid #944030;padding:10px 16px;display:flex;gap:10px;align-items:center;">
@@ -377,7 +377,7 @@ canvas { max-width:100%; }
       <button class="preset" onclick="setPreset('all')">Todo</button>
       <button class="preset" onclick="setPreset('last7')">7d</button>
     </div>
-    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" onclick="loadData()">↻ Sync</button>
+    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" onclick="loadData()">↻</button>
   </div>
 
   <!-- NAV TABS -->
@@ -407,8 +407,7 @@ canvas { max-width:100%; }
   </div>
   <div class="kpi-row" id="kpi-row">
     <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Ventas #</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">pipeline</div></div>
+    <div class="kpi gn"><div class="kpi-lbl">Ventas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">pipeline</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div></div>
     <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div></div>
@@ -477,40 +476,29 @@ const RAW_C = [{"Fecha":"2026-02-06","Closer":"Ignacio","Monto":1748.2517,"ComCl
 // ═══════════════════════════════════════════════
 //  FILTERS
 // ═══════════════════════════════════════════════
-let dateFrom = '', dateTo = '';
+let dateFrom='',dateTo='';
 
 function buildMonthPresets() {
-  const MNAMES = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
-  const months = [...new Set(
-    [...RAW_MD, ...RAW_CC, ...RAW_C].map(r => r.Fecha).filter(Boolean).map(d => d.slice(0,7))
-  )].sort();
-  const wrap = document.getElementById('month-btns');
-  if (!wrap) return;
-  const fixed = wrap.innerHTML;
-  wrap.innerHTML = months.map(m =>
-    '<button class="preset" onclick="setPreset(\'m:' + m + '\')">' + MNAMES[m.slice(5,7)] + '</button>'
-  ).join('') + fixed;
+  const MNAMES={'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+  const months=[...new Set([...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).map(d=>d.slice(0,7)))].sort();
+  const wrap=document.getElementById('month-btns');
+  if(!wrap) return;
+  const fixed=wrap.innerHTML;
+  wrap.innerHTML=months.map(m=>'<button class="preset" onclick="setPreset(\'m:'+m+'\')">'+MNAMES[m.slice(5,7)]+'</button>').join('')+fixed;
 }
 
 function setPreset(p) {
-  document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
-  if (event && event.target) event.target.classList.add('active');
-  const allDates = [...RAW_MD, ...RAW_CC, ...RAW_C].map(r => r.Fecha).filter(Boolean).sort();
-  const minD = allDates[0] || new Date().toISOString().slice(0,10);
-  const maxD = allDates[allDates.length-1] || new Date().toISOString().slice(0,10);
-  if (p.startsWith('m:')) {
-    const ym = p.slice(2);
-    const [y, m] = ym.split('-').map(Number);
-    dateFrom = ym + '-01';
-    dateTo   = new Date(y, m, 0).toISOString().slice(0,10);
-  } else if (p === 'all') {
-    dateFrom = minD; dateTo = maxD;
-  } else if (p === 'last7') {
-    const d = new Date(maxD); d.setDate(d.getDate() - 6);
-    dateFrom = d.toISOString().slice(0,10); dateTo = maxD;
-  }
-  document.getElementById('date-from').value = dateFrom;
-  document.getElementById('date-to').value   = dateTo;
+  document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
+  if(event&&event.target) event.target.classList.add('active');
+  const all=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
+  const minD=all[0]||'', maxD=all[all.length-1]||'';
+  if(p.startsWith('m:')){
+    const ym=p.slice(2);const[y,m]=ym.split('-').map(Number);
+    dateFrom=ym+'-01';dateTo=new Date(y,m,0).toISOString().slice(0,10);
+  }else if(p==='all'){dateFrom=minD;dateTo=maxD;}
+  else if(p==='last7'){const d=new Date(maxD);d.setDate(d.getDate()-6);dateFrom=d.toISOString().slice(0,10);dateTo=maxD;}
+  document.getElementById('date-from').value=dateFrom;
+  document.getElementById('date-to').value=dateTo;
   applyFilter();
 }
 
@@ -520,7 +508,7 @@ function applyFilter() {
   renderAll();
 }
 
-function inRange(d) { if (!d) return false; if (!dateFrom || !dateTo) return true; return d >= dateFrom && d <= dateTo; }
+function inRange(d) { if(!d) return false; if(!dateFrom||!dateTo) return true; return d>=dateFrom&&d<=dateTo; }
 
 function weekOf(dateStr) {
   const d = new Date(dateStr);
@@ -563,13 +551,9 @@ function computeStats() {
   const v  = RAW_V.filter(r  => inRange(r['Fecha Cierre']));
   const co = RAW_C.filter(r  => inRange(r.Fecha));
 
-  // Asistencias reales desde CLOSER_LOG (todo excepto No Asiste/Cancelada)
-  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
-  const clFilt = RAW_CL.filter(r => inRange(r.Fecha));
+  // Global MD
   const totAg = md.reduce((s,r)=>s+r.Agendas,0);
-  const totAs = clFilt.length
-    ? clFilt.filter(r => !NO_ASISTE.includes(r.Evento.toLowerCase())).length
-    : md.reduce((s,r)=>s+r.Asistencias,0);
+  const totAs = md.reduce((s,r)=>s+r.Asistencias,0);
   const totCi = md.reduce((s,r)=>s+r.Cierres,0);
   const totCash = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
@@ -577,24 +561,17 @@ function computeStats() {
   const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
 
   // Per closer
-  const allCloserNames = [...new Set([...md.map(r=>r.Closer),...clFilt.map(r=>r.Closer)])].filter(Boolean);
-  const ORDER = ['Ignacio','Sebastian','Karim','Guillermo'];
-  const closers = ORDER.filter(c=>allCloserNames.includes(c))
-    .concat(allCloserNames.filter(c=>!ORDER.includes(c)));
+  const closers = ['Ignacio','Sebastian','Karim','Guillermo'];
   const byCloser = {};
   closers.forEach(c => {
-    const rows   = md.filter(r=>r.Closer===c);
+    const rows = md.filter(r=>r.Closer===c);
     const coRows = co.filter(r=>r.Closer===c);
     const vRows  = v.filter(r=>r.Closer===c);
-    const clRows = clFilt.filter(r=>r.Closer===c);
-    const realAs = clRows.length
-      ? clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length
-      : rows.reduce((s,r)=>s+r.Asistencias,0);
     byCloser[c] = {
-      ag:  rows.reduce((s,r)=>s+r.Agendas,0),
-      as:  realAs,
-      ci:  rows.reduce((s,r)=>s+r.Cierres,0),
-      se:  rows.reduce((s,r)=>s+r.Seguimientos,0),
+      ag: rows.reduce((s,r)=>s+r.Agendas,0),
+      as: rows.reduce((s,r)=>s+r.Asistencias,0),
+      ci: rows.reduce((s,r)=>s+r.Cierres,0),
+      se: rows.reduce((s,r)=>s+r.Seguimientos,0),
       cash: coRows.reduce((s,r)=>s+r.Monto,0),
       ventas: vRows.length,
     };
@@ -626,11 +603,7 @@ function computeStats() {
     confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
   });
 
-  const tipoB = {};
-  ['Nuevo','CxC','Renovación','Upsell'].forEach(t => { tipoB[t] = co.filter(r=>r.Tipo===t).reduce((s,r)=>s+r.Monto,0); });
-  const wCT = {};
-  co.forEach(r => { const w=weekOf(r.Fecha); if(!wCT[w]) wCT[w]={Nuevo:0,CxC:0,'Renovación':0,Upsell:0}; wCT[w][r.Tipo]=(wCT[w][r.Tipo]||0)+r.Monto; });
-  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers,tipoB,wCT};
+  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
 }
 
 // ═══════════════════════════════════════════════
@@ -646,8 +619,8 @@ function renderAll() {
   renderClosers(s);
   renderRatesChart(s);
   renderConfirmer(s);
+  renderVentas(s);
   renderInsights(s);
-  if (document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
 }
 
 function renderRangeLabel() {
@@ -668,9 +641,7 @@ function renderStrip(s) {
 function renderKPIs(s) {
   const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
   const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
-  document.getElementById('k-cash').textContent         = fmtMoney(s.totCash);
-  document.getElementById('k-venta-total').textContent     = fmtMoney(s.totVenta);
-  document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
+  document.getElementById('k-cash').textContent    = fmtMoney(s.totCash);
   document.getElementById('k-ventas').textContent  = s.v.length;
   document.getElementById('k-ventas-sub').textContent = fmtMoney(s.totVenta)+' pipeline';
   document.getElementById('k-agendas').textContent = s.totAg;
@@ -756,8 +727,7 @@ function renderClosers(s) {
         <td>${weekRows[w].ag}</td><td>${weekRows[w].as}</td><td>${weekRows[w].ci}</td>
         <td class="cash">${weekRows[w].cash>0?fmtMoney(weekRows[w].cash):'—'}</td>
       </tr>`).join('');
-    const totCash  = s.co.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Monto,0);
-    const totVenta = s.v.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Venta,0);
+    const totCash = s.co.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Monto,0);
 
     const sebAlert = c==='Sebastian' ? `
       <div class="alert warn" style="margin:0 14px 12px">
@@ -778,11 +748,9 @@ function renderClosers(s) {
         <span class="cbadge ${b.cls}">${b.txt}</span>
         <span class="chevron">▼</span>
       </div>
-      <div class="cstats" style="grid-template-columns:repeat(5,1fr)">
+      <div class="cstats">
         <div class="cs"><div class="cs-val">${d.ag}</div><div class="cs-lbl">Agendas</div></div>
-        <div class="cs"><div class="cs-val">${d.as}</div><div class="cs-lbl">Asistencias</div></div>
         <div class="cs"><div class="cs-val">${d.ci}</div><div class="cs-lbl">Cierres</div></div>
-        <div class="cs"><div class="cs-val" style="color:var(--green)">${fmtMoney(totVenta)}</div><div class="cs-lbl">Venta Total</div></div>
         <div class="cs"><div class="cs-val" style="color:${totCash>0?'var(--gold-deep)':'var(--g3)'}">${totCash>0?fmtMoney(totCash):'$0'}</div><div class="cs-lbl">Cash</div></div>
       </div>
       <div class="cdetail">
@@ -931,66 +899,17 @@ function renderVentas(s) {
       </div>${rows}
     </div>`;
 
-  // ── Flujos proyectados desde PLAN_CUOTAS ──────────────────────────
-  const hoy = new Date().toISOString().slice(0,10);
-  const pend = RAW_PC.filter(r => (r.Estado||'').toLowerCase() !== 'pagado')
-    .sort((a,b) => a.FechaVenc.localeCompare(b.FechaVenc));
-  const fEl = document.getElementById('flujos-list');
-  if (fEl) {
-    if (!pend.length) {
-      fEl.innerHTML = '<div style="font-size:.7rem;color:var(--g4);padding:12px 0;">Sin pagos programados pendientes</div>';
-    } else {
-      const maxF = Math.max(...pend.map(r=>r.Monto));
-      const totalF = pend.reduce((s,r)=>s+r.Monto,0);
-      const totalV = pend.filter(r=>r.FechaVenc<hoy).reduce((s,r)=>s+r.Monto,0);
-      function fCol(d){const df=Math.round((new Date(d)-new Date(hoy))/86400000);return df<0?'var(--red)':df<=7?'var(--gold)':'var(--green)';}
-      function fDia(d){const df=Math.round((new Date(d)-new Date(hoy))/86400000);return df===0?'Hoy':df>0?'en '+df+'d':Math.abs(df)+'d vencido';}
-      fEl.innerHTML = pend.map(r=>{
-        const col=fCol(r.FechaVenc), dia=fDia(r.FechaVenc), nom=(r.LeadMail||'').split('@')[0]||'—';
-        return '<div class="fc-row">'
-          +'<div style="width:82px;flex-shrink:0;"><div class="fc-week">'+fmtDate(r.FechaVenc)+'</div>'
-          +'<div style="font-size:.58rem;color:'+col+';font-weight:600;">'+dia+'</div></div>'
-          +'<div style="flex:1;min-width:0;"><div style="font-size:.62rem;color:var(--g2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.Closer+' · '+nom+'</div>'
-          +'<div class="fc-track" style="margin-top:4px;"><div class="fc-fill" style="width:'+Math.round(r.Monto/maxF*100)+'%;background:'+col+';opacity:.75;"></div></div></div>'
-          +'<div class="fc-amt" style="color:'+col+';">'+fmtMoney(r.Monto)+'</div></div>';
-      }).join('')
-      +'<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;">'
-      +'<span style="font-size:.58rem;color:var(--g3);font-weight:600;text-transform:uppercase;">'+pend.length+' pagos · '+fmtMoney(totalV)+' vencidos</span>'
-      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--gold-deep);">'+fmtMoney(totalF)+'</span></div>';
-    }
-  }
-  // ── Comisiones ─────────────────────────────────────────────────────
-  const SIN=['Guillermo'];
-  const comC={};
-  s.co.forEach(r=>{ if(SIN.includes(r.Closer)) return; comC[r.Closer]=(comC[r.Closer]||0)+(r.ComCloser||0); });
-  const totConf=s.co.reduce((s,r)=>s+(r.ComConf||0),0);
-  const cCol={Ignacio:'var(--gold-deep)',Sebastian:'var(--blue)',Karim:'var(--green)'};
-  const comRows=Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const totComC=comRows.reduce((s,[,v])=>s+v,0);
-  const cEl=document.getElementById('comisiones-wrap');
-  if(cEl){
-    cEl.innerHTML=
-      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
-      +comRows.map(([c,v])=>
-        '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-        +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.9rem;color:'+(cCol[c]||'var(--g2)')+';">'+c[0]+'</div>'
-        +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>'
-        +'<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div></div>'
-      ).join('')
-      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
-      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
-      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--gold-deep);">'+fmtMoney(totComC)+'</span></div></div>'
-      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>'
-      +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-      +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;color:var(--green);">C</div>'
-      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>'
-      +'<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
-      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
-      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--green);">'+fmtMoney(totConf)+'</span></div></div>';
-  }
+  // Forecast semanal from cobros
+  const weekC={};
+  s.co.forEach(r=>{const w=weekOf(r.Fecha);weekC[w]=(weekC[w]||0)+r.Monto;});
+  const wks=Object.keys(weekC).sort();
+  const maxW=Math.max(...wks.map(w=>weekC[w]));
+  document.getElementById('fc-list').innerHTML = wks.map(w=>`
+    <div class="fc-row">
+      <div class="fc-week">${fmtDate(w)}</div>
+      <div class="fc-track"><div class="fc-fill" style="width:${Math.round(weekC[w]/maxW*100)}%"></div></div>
+      <div class="fc-amt">${fmtMoney(weekC[w])}</div>
+    </div>`).join('');
 }
 
 function renderInsights(s) {
@@ -1044,7 +963,6 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   el.classList.add('active');
   window.scrollTo(0,0);
-  if (id === 'ventas' && RAW_C.length) { const s = computeStats(); renderVentas(s); }
 }
 
 function toggleCloser(name) {
@@ -1052,118 +970,110 @@ function toggleCloser(name) {
 }
 
 // ═══════════════════════════════════════════════
-//  LIVE DATA
+//  LIVE CSV FETCH
 // ═══════════════════════════════════════════════
-const APPS_URL = 'https://script.google.com/macros/s/AKfycbzlyjEnU474UcqgaqYuAdrMJJFh7QIGuoa-EEGachj1xLvU4H1HqSGzWOpdjjzHeKNQ/exec';
 
-function toDateStr(val) {
-  if (!val) return null;
-  const s = String(val).trim();
-  if (!s || s === 'NaT' || s === 'null') return null;
-  // "2026-01-26T08:00:00.000Z" → "2026-01-26"
-  if (s.length >= 10 && s[4] === '-') return s.slice(0, 10);
-  // DD/MM/YYYY
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const [d,m,y] = s.split('/');
-    return y + '-' + m.padStart(2,'0') + '-' + d.padStart(2,'0');
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
+  function parseLine(line) {
+    const vals=[]; let cur='', inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+      else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}
+      else cur+=ch;
+    }
+    vals.push(cur.trim());
+    return vals;
+  }
+  const headers=parseLine(lines[0]);
+  return lines.slice(1).filter(l=>l.trim()).map(line=>{
+    const vals=parseLine(line);
+    const obj={};
+    headers.forEach((h,i)=>{obj[h]=(vals[i]||'').replace(/^"|"$/g,'');});
+    return obj;
+  });
+}
+
+function toDate(s) {
+  if(!s||s===''||s==='NaT') return null;
+  s=s.trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    const[d,m,y]=s.split('/');return y+'-'+m.padStart(2,'0')+'-'+d.padStart(2,'0');
   }
   return null;
 }
+function toN(v){const n=parseFloat(String(v||0).replace(/,/g,'.'));return isNaN(n)?0:n;}
 
-function n(v) {
-  if (typeof v === 'number') return isNaN(v) ? 0 : v;
-  const x = parseFloat(String(v || 0).replace(/,/g, '.'));
-  return isNaN(x) ? 0 : x;
-}
 
-function findCol(row, ...keys) {
-  const rk = Object.keys(row);
-  for (const k of keys) {
-    const norm = k.toLowerCase().replace(/[^a-z0-9]/g,'');
-    const found = rk.find(r => r.toLowerCase().replace(/[^a-z0-9]/g,'').includes(norm));
-    if (found !== undefined && row[found] !== '' && row[found] !== null && row[found] !== undefined) return row[found];
-  }
-  return '';
-}
+const URLS = {
+  MD: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1996565453&single=true&output=csv',
+  CC: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=355815377&single=true&output=csv',
+  V:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=136016178&single=true&output=csv',
+  CO: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1724312474&single=true&output=csv',
+};
 
 async function loadData() {
   document.getElementById('loader').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   document.getElementById('error-banner').style.display = 'none';
   try {
-    const res = await fetch(APPS_URL);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const j = await res.json();
+    const [mdR,ccR,vR,coR] = await Promise.all([
+      fetch(URLS.MD), fetch(URLS.CC), fetch(URLS.V), fetch(URLS.CO)
+    ]);
+    const [mdT,ccT,vT,coT] = await Promise.all([
+      mdR.text(), ccR.text(), vR.text(), coR.text()
+    ]);
 
-    RAW_MD = (j['METRICAS_DIARIAS'] || [])
-      .map(r => ({
-        Fecha: toDateStr(findCol(r,'Fecha')),
-        Closer: String(findCol(r,'Closer') || ''),
-        Agendas: n(findCol(r,'Agendas')),
-        Asistencias: n(findCol(r,'Asistencias')),
-        Cierres: n(findCol(r,'Cierres')),
-        Seguimientos: n(findCol(r,'Seguimientos')),
-        CashCollect: n(findCol(r,'Cash Collect ($)','CashCollect')),
-      }))
-      .filter(r => r.Fecha && r.Closer && r.Closer !== 'Closer');
+    RAW_MD = parseCSV(mdT)
+      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
+      .map(r=>({
+        Fecha: toDate(r['Fecha']),
+        Closer: r['Closer'],
+        Agendas: toN(r['Agendas']),
+        Asistencias: toN(r['Asistencias']),
+        Cierres: toN(r['Cierres']),
+        Seguimientos: toN(r['Seguimientos']),
+        CashCollect: toN(r['Cash Collect ($)']),
+      })).filter(r=>r.Fecha);
 
-    RAW_CC = (j['CALL_CONFIRMER_LOG'] || [])
-      .map(r => ({
-        Fecha: toDateStr(findCol(r,'Fecha')),
-        Confirmer: String(findCol(r,'Confirmer') || ''),
-        Estado: String(findCol(r,'Estado') || ''),
-        Closer: String(findCol(r,'Closer') || ''),
-      }))
-      .filter(r => r.Fecha && r.Confirmer);
+    RAW_CC = parseCSV(ccT)
+      .filter(r=>r['Fecha']&&r['Confirmer'])
+      .map(r=>({
+        Fecha: toDate(r['Fecha']),
+        Confirmer: r['Confirmer'],
+        Estado: r['Estado']||'',
+        Closer: r['Closer']||'',
+      })).filter(r=>r.Fecha);
 
-    RAW_V = (j['VENTAS'] || [])
-      .map(r => ({
-        Cliente: String(findCol(r,'Cliente') || ''),
-        'Fecha Cierre': toDateStr(findCol(r,'Fecha Cierre')),
-        Closer: String(findCol(r,'Closer') || ''),
-        Plan: String(findCol(r,'Plan') || ''),
-        Venta: n(findCol(r,'Venta ($)')),
-        Cobrado: n(findCol(r,'Cobrado ($)')),
-        Pendiente: n(findCol(r,'PDTE PAGO ($)')),
-      }))
-      .filter(r => r['Fecha Cierre'] && r.Venta > 0);
+    RAW_V = parseCSV(vT)
+      .filter(r=>r['Cliente']&&r['Fecha Cierre'])
+      .map(r=>({
+        Cliente: r['Cliente'],
+        'Fecha Cierre': toDate(r['Fecha Cierre']),
+        Closer: r['Closer'],
+        Plan: r['Plan'],
+        Venta: toN(r['Venta ($)']),
+        Cobrado: toN(r['Cobrado ($)']),
+        Pendiente: toN(r['PDTE PAGO ($)']),
+      })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
 
-    RAW_C = (j['COBROS_DIARIOS'] || [])
-      .map(r => ({
-        Fecha: toDateStr(findCol(r,'Fecha Pago')),
-        Closer: String(findCol(r,'Closer') || ''),
-        Monto: n(findCol(r,'Monto Pagado')),
-        ComCloser: n(findCol(r,'Comisión Closer','Comision Closer')),
-        ComConf: n(findCol(r,'Comisión Confirmer','Comision Confirmer')),
-        Tipo: String(findCol(r,'Tipo') || 'CxC'),
-      }))
-      .filter(r => r.Fecha && r.Monto > 0);
-
-    RAW_CL = (j['CLOSER_LOG'] || [])
-      .map(r => ({
-        Fecha: toDateStr(findCol(r,'Fecha')),
-        Closer: String(findCol(r,'Closer') || ''),
-        Evento: String(findCol(r,'Evento') || ''),
-      }))
-      .filter(r => r.Fecha && r.Closer && r.Closer !== 'Closer');
-
-    RAW_PC = (j['PLAN_CUOTAS'] || [])
-      .map(r => ({
-        FechaVenc: toDateStr(findCol(r,'Fecha Vencimiento')),
-        FechaPago: toDateStr(findCol(r,'Fecha de Pago Real')),
-        Closer: String(findCol(r,'Closer') || ''),
-        Monto: n(findCol(r,'Por Pagar')),
-        Estado: String(findCol(r,'Estado') || ''),
-        LeadMail: String(findCol(r,'Lead Mail') || ''),
-      }))
-      .filter(r => r.FechaVenc && r.Monto > 0);
+    RAW_C = parseCSV(coT)
+      .filter(r=>r['Fecha Pago']&&r['Monto Pagado'])
+      .map(r=>({
+        Fecha: toDate(r['Fecha Pago']),
+        Closer: r['Closer'],
+        Monto: toN(r['Monto Pagado']),
+        ComCloser: toN(r['Comisión Closer']),
+        ComConf: toN(r['Comisión Confirmer']),
+      })).filter(r=>r.Fecha&&r.Monto>0);
 
     // Set date range from data
-    const allDates = [...RAW_MD, ...RAW_CC, ...RAW_C]
-      .map(r => r.Fecha).filter(Boolean).sort();
-    if (allDates.length) {
+    const allDates = [...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
+    if(allDates.length){
       dateFrom = allDates[0];
-      dateTo   = allDates[allDates.length - 1];
+      dateTo   = allDates[allDates.length-1];
       document.getElementById('date-from').value = dateFrom;
       document.getElementById('date-to').value   = dateTo;
     }
@@ -1173,15 +1083,13 @@ async function loadData() {
     const now = new Date();
     document.getElementById('last-updated').textContent =
       'Actualizado: ' + now.toLocaleDateString('es-CL') + ' ' +
-      now.toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'});
-
+      now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     buildMonthPresets();
     renderAll();
 
   } catch(err) {
     document.getElementById('loader').style.display = 'none';
-    const eb = document.getElementById('error-banner');
-    eb.style.display = 'flex';
+    document.getElementById('error-banner').style.display = 'flex';
     document.getElementById('error-msg').textContent = 'Error: ' + err.message;
   }
 }
@@ -1189,7 +1097,6 @@ async function loadData() {
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
-let RAW_CL = [], RAW_PC = [];
 loadData();
 </script>
 </div><!-- /app -->
