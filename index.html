@@ -462,7 +462,9 @@ canvas { max-width:100%; }
 
 <!-- ═══════════════ PAGE: VENTAS ═══════════════ -->
 <div id="page-ventas" class="page">
-  <div class="sec"><div class="sec-ico">💰</div><span class="sec-title">Pipeline de Ventas</span></div>
+  <div class="sec"><div class="sec-ico">💰</div><span class="sec-title">Pipeline de Ventas</span>
+    <button onclick="if(dataLoaded){const s=computeStats();renderVentas(s);}" style="margin-left:auto;background:var(--gold-pale);border:1px solid var(--gold);color:var(--gold-deep);font-family:'DM Sans',sans-serif;font-size:.6rem;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;letter-spacing:.04em;">↻ Actualizar</button>
+  </div>
   <div class="kpi-row" id="ventas-kpis"><!-- JS --></div>
   <div style="height:14px"></div>
   <div id="vtable-wrap"><!-- JS --></div>
@@ -1150,9 +1152,7 @@ function renderVentas(s) {
 
   if(s.v.length===0){
     document.getElementById('vtable-wrap').innerHTML='<div class="no-data"><span>💰</span>Sin ventas en este período</div>';
-    document.getElementById('fc-list').innerHTML='';
-    return;
-  }
+  } else {
 
   let rows = s.v.map(r=>`
     <div class="vrow">
@@ -1172,11 +1172,10 @@ function renderVentas(s) {
       </div>${rows}
     </div>`;
 
+  } // end if ventas
+
   // Flujos proyectados desde PLAN_CUOTAS
   const todayStr = new Date().toISOString().slice(0,10);
-  // Debug info visible in page
-  const debugEl = document.getElementById('flujos-list');
-  if (debugEl) debugEl.innerHTML = '<div style="font-size:.65rem;color:var(--g3);padding:8px 0;">Cargando... PLAN_CUOTAS: '+RAW_PC.length+' filas | Muestra: '+(RAW_PC.length>0?JSON.stringify(RAW_PC[0]).slice(0,120):'vacío')+'</div>';
 
   const pendientes = RAW_PC
     .filter(r => {
@@ -1373,10 +1372,15 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   el.classList.add('active');
   window.scrollTo(0,0);
-  if (id === 'ventas' && dataLoaded) {
-    const s = computeStats();
-    renderVentas(s);
-  }
+  setTimeout(function() {
+    if (dataLoaded) {
+      const s = computeStats();
+      if (id === 'ventas') renderVentas(s);
+      if (id === 'closers') { renderClosers(s); renderRatesChart(s); }
+      if (id === 'confirmer') renderConfirmer(s);
+      if (id === 'insights') renderInsights(s);
+    }
+  }, 50);
 }
 
 function toggleCloser(name) {
