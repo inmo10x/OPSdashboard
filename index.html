@@ -351,45 +351,25 @@ canvas { max-width:100%; }
 <body>
 
 <!-- HEADER -->
-
-<!-- LOADER -->
-<div id="loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;gap:16px;">
-  <div style="width:36px;height:36px;border:3px solid #e2ddd4;border-top-color:#a8832a;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-  <div style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:#9a978f;letter-spacing:.06em;text-transform:uppercase;">Cargando datos en vivo...</div>
-</div>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-
-<!-- ERROR BANNER -->
-<div id="error-banner" style="display:none;background:#f5e8e4;border-bottom:2px solid #944030;padding:12px 16px;align-items:center;gap:10px;">
-  <span style="font-size:1rem;">⚠️</span>
-  <span id="error-msg" style="font-family:'DM Sans',sans-serif;font-size:.7rem;color:#944030;flex:1;"></span>
-  <button onclick="fetchAllData()" style="background:#944030;color:#fff;border:none;padding:6px 12px;font-size:.65rem;border-radius:4px;cursor:pointer;font-family:'DM Sans',sans-serif;">Reintentar</button>
-</div>
-
-<div id="main-content" style="display:none;">
 <div class="header">
   <div class="header-top">
     <div class="logo">CONVIERTE <span>OPS</span></div>
-    <div style="text-align:right">
-    <span class="live">EN VIVO</span>
-    <div id="last-updated" style="font-size:.52rem;color:var(--g4);margin-top:2px;font-family:'DM Sans',sans-serif;"></div>
-  </div>
+    <div style="text-align:right"><span class="live">EN VIVO</span><div id="last-updated" style="font-size:.52rem;color:var(--g4);margin-top:2px;font-family:'DM Sans',sans-serif;"></div></div>
   </div>
 
   <!-- DATE FILTER -->
   <div class="date-bar">
     <span class="date-label">Período:</span>
-    <input type="date" id="date-from" class="date-input" value="">
+    <input type="date" id="date-from" class="date-input" value="2026-01-26">
     <span class="date-sep">→</span>
-    <input type="date" id="date-to"   class="date-input" value="">
+    <input type="date" id="date-to"   class="date-input" value="2026-03-26">
     <div class="preset-btns">
       <button class="preset" onclick="setPreset('feb')">Feb</button>
       <button class="preset" onclick="setPreset('mar')">Mar</button>
-      <button class="preset" onclick="setPreset('abr')">Abr</button>
       <button class="preset" onclick="setPreset('all')">Todo</button>
       <button class="preset" onclick="setPreset('last7')">7d</button>
     </div>
-    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" onclick="fetchAllData()">↻ Sync</button>
+    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" onclick="fetchData()">↻ Sync</button>
   </div>
 
   <!-- NAV TABS -->
@@ -405,7 +385,7 @@ canvas { max-width:100%; }
 <!-- SUMMARY STRIP -->
 <div class="strip" id="strip">
   <div class="strip-item"><div class="strip-val" id="s-cash">—</div><div class="strip-lbl">Cobrado</div></div>
-  <div class="strip-item"><div class="strip-val" id="s-ventas">—</div><div class="strip-lbl">Venta Total</div></div>
+  <div class="strip-item"><div class="strip-val" id="s-ventas">—</div><div class="strip-lbl">Ventas</div></div>
   <div class="strip-item"><div class="strip-val" id="s-close">—</div><div class="strip-lbl">Close Rate</div></div>
   <div class="strip-item"><div class="strip-val" id="s-show">—</div><div class="strip-lbl">Show Rate</div></div>
 </div>
@@ -426,10 +406,6 @@ canvas { max-width:100%; }
     <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Ticket Prom.</div><div class="kpi-val" id="k-ticket">—</div><div class="kpi-sub">USD / venta</div></div>
   </div>
-
-  <div class="divider"></div>
-  <div class="sec"><div class="sec-ico">💎</div><span class="sec-title">Desglose de Cash</span></div>
-  <div class="kpi-row" id="tipo-row" style="padding-bottom:12px;"></div>
 
   <div class="divider"></div>
   <div class="sec"><div class="sec-ico">📈</div><span class="sec-title">Cash Semanal</span></div>
@@ -462,9 +438,7 @@ canvas { max-width:100%; }
 
 <!-- ═══════════════ PAGE: VENTAS ═══════════════ -->
 <div id="page-ventas" class="page">
-  <div class="sec"><div class="sec-ico">💰</div><span class="sec-title">Pipeline de Ventas</span>
-    <button onclick="if(dataLoaded){const s=computeStats();renderVentas(s);}" style="margin-left:auto;background:var(--gold-pale);border:1px solid var(--gold);color:var(--gold-deep);font-family:'DM Sans',sans-serif;font-size:.6rem;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;letter-spacing:.04em;">↻ Actualizar</button>
-  </div>
+  <div class="sec"><div class="sec-ico">💰</div><span class="sec-title">Pipeline de Ventas</span></div>
   <div class="kpi-row" id="ventas-kpis"><!-- JS --></div>
   <div style="height:14px"></div>
   <div id="vtable-wrap"><!-- JS --></div>
@@ -482,264 +456,149 @@ canvas { max-width:100%; }
 
 <script>
 // ═══════════════════════════════════════════════
-//  LIVE DATA — fetched from Google Sheets CSV
+//  LIVE DATA — Google Apps Script
 // ═══════════════════════════════════════════════
-// Google Apps Script endpoint — no CORS issues
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlyjEnU474UcqgaqYuAdrMJJFh7QIGuoa-EEGachj1xLvU4H1HqSGzWOpdjjzHeKNQ/exec';
-
-// CSV parser — handles quoted fields, \r\n, and Google Sheets export format
-function parseCSV(text) {
-  // Normalize line endings
-  text = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-  const lines = text.trim().split('\n');
-  
-  function parseLine(line) {
-    const vals = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (ch === ',' && !inQ) {
-        vals.push(cur.trim());
-        cur = '';
-      } else {
-        cur += ch;
-      }
-    }
-    vals.push(cur.trim());
-    return vals;
-  }
-  
-  const headers = parseLine(lines[0]);
-  console.log('CSV headers:', headers);
-  
-  return lines.slice(1).filter(l => l.trim()).map(line => {
-    const vals = parseLine(line);
-    const obj = {};
-    headers.forEach((h,i) => { obj[h] = (vals[i]||''); });
-    return obj;
-  });
-}
+const APPS_URL = 'https://script.google.com/macros/s/AKfycbzlyjEnU474UcqgaqYuAdrMJJFh7QIGuoa-EEGachj1xLvU4H1HqSGzWOpdjjzHeKNQ/exec';
 
 function toDate(val) {
   if (!val && val !== 0) return null;
-  // Google Apps Script Date object serialized as "Date(year,month,day,...)"
-  if (typeof val === 'string' && val.startsWith('Date(')) {
-    const parts = val.slice(5,-1).split(',').map(Number);
-    const d = new Date(parts[0], parts[1], parts[2]);
-    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  if (val instanceof Date) {
+    if (isNaN(val)) return null;
+    return val.getFullYear()+'-'+String(val.getMonth()+1).padStart(2,'0')+'-'+String(val.getDate()).padStart(2,'0');
   }
-  // JS Date object or timestamp
-  if (val instanceof Date || (typeof val === 'object' && val !== null)) {
-    try {
-      const d = new Date(val);
-      if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    } catch(e) {}
+  const s = String(val).trim();
+  if (!s || s==='NaT'||s==='nan'||s==='null'||s==='undefined') return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [d,m,y]=s.split('/'); return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
   }
-  const str = String(val).trim();
-  if (!str || str === '' || str === 'NaT' || str === 'nan' || str === 'null') return null;
-  // YYYY-MM-DD (ISO)
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0,10);
-  // DD/MM/YYYY
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-    const [d,m,y] = str.split('/');
-    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-  }
-  // MM/DD/YYYY
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str)) {
-    const parts = str.split('/');
-    const y = parts[2].length === 2 ? '20'+parts[2] : parts[2];
-    return `${y}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
-  }
-  // Try native Date parse as last resort
-  const d = new Date(str);
-  if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const d=new Date(s); if(!isNaN(d)) return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   return null;
 }
-
-function toNum(val) {
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  if (!val) return 0;
-  const n = parseFloat(String(val).replace(/,/g,'.'));
-  return isNaN(n) ? 0 : n;
-}
-
-// Flexible column finder — finds key by partial match, case-insensitive
-function col(row, ...candidates) {
-  const keys = Object.keys(row);
-  for (const c of candidates) {
-    const found = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g,'').includes(c.toLowerCase().replace(/[^a-z0-9]/g,'')));
-    if (found && row[found] !== undefined && row[found] !== '') return row[found];
+function toNum(v) { if(typeof v==='number') return isNaN(v)?0:v; const n=parseFloat(String(v||0).replace(/,/g,'.')); return isNaN(n)?0:n; }
+function colFind(row,...keys) {
+  const rkeys=Object.keys(row);
+  for(const k of keys){
+    const f=rkeys.find(rk=>rk.toLowerCase().replace(/[^a-z0-9]/g,'').includes(k.toLowerCase().replace(/[^a-z0-9]/g,'')));
+    if(f&&row[f]!==undefined&&row[f]!=='') return row[f];
   }
   return '';
 }
 
-function transformMD(rows) {
-  if (rows.length > 0) console.log('MD columns:', Object.keys(rows[0]));
-  return rows.filter(r => col(r,'fecha') && col(r,'closer') && col(r,'closer') !== 'Closer').map(r => ({
-    Fecha: toDate(col(r,'fecha')),
-    Closer: col(r,'closer'),
-    Agendas: toNum(col(r,'agendas')),
-    Asistencias: toNum(col(r,'asistencias')),
-    Cierres: toNum(col(r,'cierres')),
-    Seguimientos: toNum(col(r,'seguimientos')),
-    CashCollect: toNum(col(r,'cashcollect','cash collect','cashcol')),
-  })).filter(r => r.Fecha && r.Closer);
+let RAW_MD=[],RAW_CC=[],RAW_V=[],RAW_C=[],RAW_CL=[],RAW_PC=[];
+let dataLoaded=false;
+
+function parseMD(rows) {
+  return rows.filter(r=>colFind(r,'fecha')&&colFind(r,'closer')&&String(colFind(r,'closer'))!=='Closer').map(r=>({
+    Fecha:toDate(colFind(r,'fecha')), Closer:String(colFind(r,'closer')),
+    Agendas:toNum(colFind(r,'agendas')), Asistencias:toNum(colFind(r,'asistencias')),
+    Cierres:toNum(colFind(r,'cierres')), Seguimientos:toNum(colFind(r,'seguimientos')),
+    CashCollect:toNum(colFind(r,'cashcollect','cash collect')),
+  })).filter(r=>r.Fecha&&r.Closer);
+}
+function parseCC(rows) {
+  return rows.filter(r=>colFind(r,'fecha')&&colFind(r,'confirmer')).map(r=>({
+    Fecha:toDate(colFind(r,'fecha')), Confirmer:String(colFind(r,'confirmer')),
+    Estado:String(colFind(r,'estado')||''), Closer:String(colFind(r,'closer')||''),
+  })).filter(r=>r.Fecha);
+}
+function parseV(rows) {
+  return rows.filter(r=>colFind(r,'cliente')&&colFind(r,'fechacierre','fecha cierre')).map(r=>({
+    Cliente:String(colFind(r,'cliente')),
+    'Fecha Cierre':toDate(colFind(r,'fechacierre','fecha cierre')),
+    Closer:String(colFind(r,'closer')), Plan:String(colFind(r,'plan')),
+    Venta:toNum(colFind(r,'venta')), Cobrado:toNum(colFind(r,'cobrado')),
+    Pendiente:toNum(colFind(r,'pdte','pendiente')),
+  })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
+}
+function parseCO(rows) {
+  return rows.filter(r=>colFind(r,'fechapago','fecha pago')&&colFind(r,'montopagado','monto pagado')).map(r=>({
+    Fecha:toDate(colFind(r,'fechapago','fecha pago')),
+    Closer:String(colFind(r,'closer')),
+    Monto:toNum(colFind(r,'montopagado','monto pagado')),
+    ComCloser:toNum(colFind(r,'comisioncloser','comision closer')),
+    ComConf:toNum(colFind(r,'comisionconfirmer','comision confirmer')),
+    Tipo:String(colFind(r,'tipo')||'CxC'),
+  })).filter(r=>r.Fecha&&r.Monto>0);
+}
+function parseCL(rows) {
+  return rows.filter(r=>colFind(r,'fecha')&&colFind(r,'closer')).map(r=>({
+    Fecha:toDate(colFind(r,'fecha')), Closer:String(colFind(r,'closer')),
+    Evento:String(colFind(r,'evento')||''),
+  })).filter(r=>r.Fecha&&r.Closer&&r.Closer!=='Closer');
+}
+function parsePC(rows) {
+  return rows.filter(r=>colFind(r,'fechavencimiento','fecha vencimiento')).map(r=>({
+    FechaVenc:toDate(colFind(r,'fechavencimiento','fecha vencimiento')),
+    FechaPago:toDate(colFind(r,'fechadepagoreal','fecha de pago real')),
+    Closer:String(colFind(r,'closer')),
+    Monto:toNum(colFind(r,'porpagar','por pagar','montopagado','monto pagado')),
+    Estado:String(colFind(r,'estado')||''),
+    LeadMail:String(colFind(r,'leadmail','lead mail')||''),
+  })).filter(r=>r.FechaVenc&&r.Monto>0);
 }
 
-function transformCC(rows) {
-  if (rows.length > 0) console.log('CC columns:', Object.keys(rows[0]));
-  return rows.filter(r => col(r,'fecha') && col(r,'confirmer')).map(r => ({
-    Fecha: toDate(col(r,'fecha')),
-    Confirmer: col(r,'confirmer'),
-    Estado: col(r,'estado') || '',
-    Closer: col(r,'closer') || '',
-  })).filter(r => r.Fecha);
-}
-
-function transformV(rows) {
-  if (rows.length > 0) console.log('V columns:', Object.keys(rows[0]));
-  return rows.filter(r => col(r,'cliente') && col(r,'fechacierre','fecha cierre') && col(r,'venta')).map(r => ({
-    Cliente: col(r,'cliente'),
-    'Fecha Cierre': toDate(col(r,'fechacierre','fecha cierre')),
-    Closer: col(r,'closer'),
-    Plan: col(r,'plan'),
-    Venta: toNum(col(r,'venta')),
-    Cobrado: toNum(col(r,'cobrado')),
-    Pendiente: toNum(col(r,'pdte','pendiente','pago')),
-  })).filter(r => r['Fecha Cierre']);
-}
-
-function transformCO(rows) {
-  if (rows.length > 0) console.log('CO columns:', Object.keys(rows[0]));
-  return rows.filter(r => col(r,'fechapago','fecha pago') && col(r,'montopagado','monto pagado')).map(r => ({
-    Fecha: toDate(col(r,'fechapago','fecha pago')),
-    Closer: col(r,'closer'),
-    Monto: toNum(col(r,'montopagado','monto pagado')),
-    ComCloser: toNum(col(r,'comisioncloser','comision closer')),
-    ComConf: toNum(col(r,'comisionconfirmer','comision confirmer')),
-    Tipo: (col(r,'tipo') || 'CxC').toString().trim(),
-  })).filter(r => r.Fecha);
-}
-
-function transformCL(rows) {
-  // CLOSER_LOG: used to recalculate real asistencias
-  // Asistencia real = any event that is NOT 'No Asiste' or 'Cancelada'
-  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
-  return rows.filter(r => col(r,'fecha') && col(r,'closer')).map(r => ({
-    Fecha: toDate(col(r,'fecha')),
-    Closer: col(r,'closer'),
-    Evento: (col(r,'evento') || '').toString().trim(),
-  })).filter(r => r.Fecha && r.Closer && r.Closer !== 'Closer');
-}
-
-function transformPC(rows) {
-  return rows.filter(r => col(r,'fechavencimiento','fecha vencimiento') && col(r,'montopagado','monto')).map(r => ({
-    FechaVenc: toDate(col(r,'fechavencimiento','fecha vencimiento')),
-    FechaPago: toDate(col(r,'fechadepagoreal','fecha de pago real')),
-    Closer: col(r,'closer'),
-    Monto: toNum(col(r,'montopagado','monto pagado','monto')),
-    Estado: (col(r,'estado') || '').toString().trim(),
-    LeadMail: col(r,'leadmail','lead mail'),
-  })).filter(r => r.FechaVenc);
-}
-
-// Global data store
-let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
-let dataLoaded = false;
-
-async function fetchAllData() {
+async function fetchData() {
   showLoader(true);
   try {
-    const res = await fetch(APPS_SCRIPT_URL);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-
-    RAW_MD = transformMD(json['METRICAS_DIARIAS'] || []);
-    RAW_CC = transformCC(json['CALL_CONFIRMER_LOG'] || []);
-    RAW_V  = transformV(json['VENTAS'] || []);
-    RAW_C  = transformCO(json['COBROS_DIARIOS'] || []);
-    RAW_CL = transformCL(json['CLOSER_LOG'] || []);
-    RAW_PC = transformPC(json['PLAN_CUOTAS'] || []);
+    const res = await fetch(APPS_URL);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const j = await res.json();
+    RAW_MD = parseMD(j['METRICAS_DIARIAS']||[]);
+    RAW_CC = parseCC(j['CALL_CONFIRMER_LOG']||[]);
+    RAW_V  = parseV(j['VENTAS']||[]);
+    RAW_C  = parseCO(j['COBROS_DIARIOS']||[]);
+    RAW_CL = parseCL(j['CLOSER_LOG']||[]);
+    RAW_PC = parsePC(j['PLAN_CUOTAS']||[]);
     dataLoaded = true;
-
-    // Set date range from actual data
-    const allDates = [...RAW_MD.map(r=>r.Fecha), ...RAW_CC.map(r=>r.Fecha)].filter(Boolean).sort();
-    if (allDates.length) {
-      dateFrom = allDates[0];
-      dateTo   = allDates[allDates.length-1];
-      document.getElementById('date-from').value = dateFrom;
-      document.getElementById('date-to').value   = dateTo;
-    }
-
+    // Set date range from data
+    const all=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
+    if(all.length){ dateFrom=all[0]; dateTo=all[all.length-1]; document.getElementById('date-from').value=dateFrom; document.getElementById('date-to').value=dateTo; }
     showLoader(false);
-    const now = new Date();
-    const ts = now.toLocaleDateString('es-CL') + ' ' + now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-    document.getElementById('last-updated').textContent = 'Actualizado: ' + ts;
+    document.getElementById('last-updated').textContent='Actualizado: '+new Date().toLocaleDateString('es-CL')+' '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    buildMonthPresets();
     renderAll();
-  } catch(err) {
+  } catch(e) {
     showLoader(false);
-    showError('Error al cargar datos: ' + err.message);
-    console.error(err);
+    showError('Error al cargar: '+e.message);
   }
 }
 
-function showLoader(show) {
-  document.getElementById('loader').style.display = show ? 'flex' : 'none';
-  document.getElementById('main-content').style.display = show ? 'none' : 'block';
+function showLoader(v) {
+  document.getElementById('loader').style.display=v?'flex':'none';
+  document.getElementById('main-wrap').style.display=v?'none':'block';
 }
-
-function showError(msg) {
-  document.getElementById('error-msg').textContent = msg;
-  document.getElementById('error-banner').style.display = 'flex';
+function showError(m) {
+  const b=document.getElementById('error-banner');
+  b.style.display='flex';
+  document.getElementById('error-msg').textContent=m;
 }
 
 // ═══════════════════════════════════════════════
 //  FILTERS
 // ═══════════════════════════════════════════════
-let dateFrom = '', dateTo = '';
+let dateFrom = '2026-01-26', dateTo = '2026-03-26';
+
+function buildMonthPresets() {
+  const MNAMES={'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+  const months=[...new Set([...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).map(d=>d.slice(0,7)))].sort();
+  const wrap=document.getElementById('month-btns');
+  const fixed=wrap.innerHTML;
+  wrap.innerHTML=months.map(m=>'<button class="preset" onclick="setPreset(\'m:'+m+'\')">'+MNAMES[m.slice(5,7)]+'</button>').join('')+fixed;
+}
 
 function setPreset(p) {
-  document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
   event.target.classList.add('active');
-
-  // Get actual data range dynamically
-  const allDates = [...RAW_MD.map(r=>r.Fecha), ...RAW_CC.map(r=>r.Fecha), ...RAW_C.map(r=>r.Fecha)]
-    .filter(Boolean).sort();
-  const minDate = allDates[0] || '2026-01-01';
-  const maxDate = allDates[allDates.length-1] || new Date().toISOString().slice(0,10);
-  const maxYear = maxDate.slice(0,4);
-
-  function lastDayOf(year, month) {
-    return new Date(year, month, 0).toISOString().slice(0,10);
-  }
-
-  if (p === 'feb') {
-    dateFrom = maxYear + '-02-01';
-    dateTo   = lastDayOf(parseInt(maxYear), 2);
-  }
-  if (p === 'mar') {
-    dateFrom = maxYear + '-03-01';
-    dateTo   = lastDayOf(parseInt(maxYear), 3);
-  }
-  if (p === 'abr') {
-    dateFrom = maxYear + '-04-01';
-    dateTo   = lastDayOf(parseInt(maxYear), 4);
-  }
-  if (p === 'all') {
-    dateFrom = minDate;
-    dateTo   = maxDate;
-  }
-  if (p === 'last7') {
-    const d = new Date(maxDate);
-    d.setDate(d.getDate() - 6);
-    dateFrom = d.toISOString().slice(0,10);
-    dateTo   = maxDate;
-  }
-  document.getElementById('date-from').value = dateFrom;
-  document.getElementById('date-to').value   = dateTo;
+  const all=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
+  const minD=all[0]||'2026-01-01', maxD=all[all.length-1]||new Date().toISOString().slice(0,10);
+  if(p.startsWith('m:')){
+    const ym=p.slice(2); const[y,m]=ym.split('-').map(Number);
+    dateFrom=ym+'-01'; dateTo=new Date(y,m,0).toISOString().slice(0,10);
+  } else if(p==='all'){ dateFrom=minD; dateTo=maxD; }
+  else if(p==='last7'){ const d=new Date(maxD); d.setDate(d.getDate()-6); dateFrom=d.toISOString().slice(0,10); dateTo=maxD; }
+  document.getElementById('date-from').value=dateFrom;
+  document.getElementById('date-to').value=dateTo;
   applyFilter();
 }
 
@@ -792,39 +651,32 @@ function computeStats() {
   const v  = RAW_V.filter(r  => inRange(r['Fecha Cierre']));
   const co = RAW_C.filter(r  => inRange(r.Fecha));
 
-  // Global MD
+  // Global MD — asistencias from CLOSER_LOG (all events except No Asiste/Cancelada)
+  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
+  const clAll = RAW_CL.filter(r=>inRange(r.Fecha));
   const totAg = md.reduce((s,r)=>s+r.Agendas,0);
-  const NO_ASISTE_G = ['no asiste','cancelada','cancelado'];
-  const clAll = RAW_CL.filter(r => inRange(r.Fecha));
-  const totAs = clAll.filter(r => !NO_ASISTE_G.includes(r.Evento.toLowerCase())).length;
+  const totAs = clAll.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length;
   const totCi = md.reduce((s,r)=>s+r.Cierres,0);
   const totCash = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
   const totCobrado = v.reduce((s,r)=>s+r.Cobrado,0);
   const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
 
-  // Per closer
-  // Real asistencias from CLOSER_LOG: any event that is NOT 'No Asiste' or 'Cancelada'
-  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
-  const cl = RAW_CL.filter(r => inRange(r.Fecha));
-
-  const closerNames = [...new Set([...md.map(r=>r.Closer), ...cl.map(r=>r.Closer)])].filter(Boolean);
-  const closers = ['Ignacio','Sebastian','Karim','Guillermo'].filter(c => closerNames.includes(c))
-    .concat(closerNames.filter(c => !['Ignacio','Sebastian','Karim','Guillermo'].includes(c)));
-
+  // Per closer — asistencias from CLOSER_LOG
+  const closerSet = [...new Set([...md.map(r=>r.Closer),...clAll.map(r=>r.Closer)])].filter(Boolean);
+  const closers = ['Ignacio','Sebastian','Karim','Guillermo'].filter(c=>closerSet.includes(c))
+    .concat(closerSet.filter(c=>!['Ignacio','Sebastian','Karim','Guillermo'].includes(c)));
   const byCloser = {};
   closers.forEach(c => {
     const rows  = md.filter(r=>r.Closer===c);
     const coRows = co.filter(r=>r.Closer===c);
     const vRows  = v.filter(r=>r.Closer===c);
-    const clRows = cl.filter(r=>r.Closer===c);
-    // Real asistencias: events that are not No Asiste or Cancelada
-    const realAs = clRows.filter(r => !NO_ASISTE.includes(r.Evento.toLowerCase())).length;
+    const clRows = clAll.filter(r=>r.Closer===c);
     byCloser[c] = {
-      ag: rows.reduce((s,r)=>s+r.Agendas,0),
-      as: realAs,
-      ci: rows.reduce((s,r)=>s+r.Cierres,0),
-      se: rows.reduce((s,r)=>s+r.Seguimientos,0),
+      ag:  rows.reduce((s,r)=>s+r.Agendas,0),
+      as:  clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length,
+      ci:  rows.reduce((s,r)=>s+r.Cierres,0),
+      se:  rows.reduce((s,r)=>s+r.Seguimientos,0),
       cash: coRows.reduce((s,r)=>s+r.Monto,0),
       ventas: vRows.length,
     };
@@ -856,22 +708,11 @@ function computeStats() {
     confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
   });
 
-  // Cash by tipo
-  const tipoBreakdown = {};
-  ['Nuevo','CxC','Renovación','Upsell'].forEach(t => {
-    tipoBreakdown[t] = co.filter(r => r.Tipo === t).reduce((s,r) => s+r.Monto, 0);
-  });
-
-  // Weekly cash by tipo
-  const weekCashTipo = {};
-  co.forEach(r => {
-    const w = weekOf(r.Fecha);
-    if (!weekCashTipo[w]) weekCashTipo[w] = {Nuevo:0,CxC:0,'Renovación':0,Upsell:0,total:0};
-    weekCashTipo[w][r.Tipo] = (weekCashTipo[w][r.Tipo]||0) + r.Monto;
-    weekCashTipo[w].total += r.Monto;
-  });
-
-  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers,tipoBreakdown,weekCashTipo};
+  const tipoBreakdown={};
+  ['Nuevo','CxC','Renovación','Upsell'].forEach(t=>{ tipoBreakdown[t]=co.filter(r=>r.Tipo===t).reduce((s,r)=>s+r.Monto,0); });
+  const weekCashTipo={};
+  co.forEach(r=>{ const w=weekOf(r.Fecha); if(!weekCashTipo[w]) weekCashTipo[w]={Nuevo:0,CxC:0,'Renovación':0,Upsell:0}; weekCashTipo[w][r.Tipo]=(weekCashTipo[w][r.Tipo]||0)+r.Monto; });
+  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekCashTipo,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers,tipoBreakdown};
 }
 
 // ═══════════════════════════════════════════════
@@ -888,9 +729,9 @@ function renderAll() {
   renderClosers(s);
   renderRatesChart(s);
   renderConfirmer(s);
-  // renderVentas only when on ventas page
-  if (document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
   renderInsights(s);
+  // ventas page renders on demand
+  if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
 }
 
 function renderRangeLabel() {
@@ -903,7 +744,7 @@ function renderStrip(s) {
   const showRate = pct(s.totAs, s.totAg);
   const closeRate = pct(s.totCi, s.totAs);
   document.getElementById('s-cash').textContent    = fmtMoney(s.totCash);
-  document.getElementById('s-ventas').textContent  = fmtMoney(s.totVenta);
+  document.getElementById('s-ventas').textContent  = s.v.length;
   document.getElementById('s-close').textContent   = closeRate+'%';
   document.getElementById('s-show').textContent    = showRate+'%';
 }
@@ -911,7 +752,7 @@ function renderStrip(s) {
 function renderKPIs(s) {
   const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
   const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
-  document.getElementById('k-cash').textContent    = fmtMoney(s.totCash);
+  document.getElementById('k-cash').textContent       = fmtMoney(s.totCash);
   document.getElementById('k-venta-total').textContent = fmtMoney(s.totVenta);
   document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
   document.getElementById('k-ventas').textContent  = s.v.length;
@@ -999,7 +840,7 @@ function renderClosers(s) {
         <td>${weekRows[w].ag}</td><td>${weekRows[w].as}</td><td>${weekRows[w].ci}</td>
         <td class="cash">${weekRows[w].cash>0?fmtMoney(weekRows[w].cash):'—'}</td>
       </tr>`).join('');
-    const totCash = s.co.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Monto,0);
+    const totCash  = s.co.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Monto,0);
     const totVenta = s.v.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Venta,0);
 
     const sebAlert = c==='Sebastian' ? `
@@ -1025,7 +866,7 @@ function renderClosers(s) {
         <div class="cs"><div class="cs-val">${d.ag}</div><div class="cs-lbl">Agendas</div></div>
         <div class="cs"><div class="cs-val">${d.as}</div><div class="cs-lbl">Asistencias</div></div>
         <div class="cs"><div class="cs-val">${d.ci}</div><div class="cs-lbl">Cierres</div></div>
-        <div class="cs"><div class="cs-val" style="color:var(--green)">${totVenta>0?fmtMoney(totVenta):'$0'}</div><div class="cs-lbl">Venta Total</div></div>
+        <div class="cs"><div class="cs-val" style="color:var(--green)">${fmtMoney(totVenta)}</div><div class="cs-lbl">Venta Total</div></div>
         <div class="cs"><div class="cs-val" style="color:${totCash>0?'var(--gold-deep)':'var(--g3)'}">${totCash>0?fmtMoney(totCash):'$0'}</div><div class="cs-lbl">Cash</div></div>
       </div>
       <div class="cdetail">
@@ -1152,7 +993,9 @@ function renderVentas(s) {
 
   if(s.v.length===0){
     document.getElementById('vtable-wrap').innerHTML='<div class="no-data"><span>💰</span>Sin ventas en este período</div>';
-  } else {
+    document.getElementById('fc-list').innerHTML='';
+    return;
+  }
 
   let rows = s.v.map(r=>`
     <div class="vrow">
@@ -1172,152 +1015,103 @@ function renderVentas(s) {
       </div>${rows}
     </div>`;
 
-  } // end if ventas
-
-  // Flujos proyectados desde PLAN_CUOTAS
+  // ── Flujos proyectados ──────────────────────────────────────────────
   const todayStr = new Date().toISOString().slice(0,10);
-
-  const pendientes = RAW_PC
-    .filter(r => {
-      const est = (r.Estado||'').toLowerCase();
-      return est !== 'pagado';
-    })
-    .sort((a,b) => a.FechaVenc.localeCompare(b.FechaVenc));
-
-  const pastVenc = pendientes.filter(r => r.FechaVenc < todayStr);
-  const futuros  = pendientes.filter(r => r.FechaVenc >= todayStr);
-  const allFlujos = [...pastVenc, ...futuros];
+  const pendientes = RAW_PC.filter(r=>(r.Estado||'').toLowerCase()!=='pagado').sort((a,b)=>a.FechaVenc.localeCompare(b.FechaVenc));
+  const vencidos = pendientes.filter(r=>r.FechaVenc<todayStr);
+  const proximos = pendientes.filter(r=>r.FechaVenc>=todayStr);
+  const allFlujos = [...vencidos,...proximos];
   const maxF = allFlujos.length ? Math.max(...allFlujos.map(r=>r.Monto)) : 1;
-
-  function diasLabel(fechaVenc) {
-    const diff = Math.round((new Date(fechaVenc) - new Date(todayStr))/(1000*60*60*24));
-    if (diff === 0) return 'Hoy';
-    if (diff > 0) return 'en '+diff+'d';
-    return Math.abs(diff)+'d vencido';
+  function fColor(d){const df=Math.round((new Date(d)-new Date(todayStr))/86400000);return df<0?'var(--red)':df<=7?'var(--gold)':'var(--green)';}
+  function fDias(d){const df=Math.round((new Date(d)-new Date(todayStr))/86400000);return df===0?'Hoy':df>0?'en '+df+'d':Math.abs(df)+'d vencido';}
+  const flujosEl = document.getElementById('flujos-list');
+  if(flujosEl) {
+    if(!allFlujos.length){
+      flujosEl.innerHTML='<div style="font-size:.7rem;color:var(--g4);padding:12px 0;">Sin pagos programados pendientes</div>';
+    } else {
+      const totalF=allFlujos.reduce((s,r)=>s+r.Monto,0);
+      const totalV=vencidos.reduce((s,r)=>s+r.Monto,0);
+      flujosEl.innerHTML = allFlujos.map(r=>{
+        const col=fColor(r.FechaVenc), dias=fDias(r.FechaVenc), nom=r.LeadMail?r.LeadMail.split('@')[0]:'—';
+        return '<div class="fc-row">'
+          +'<div style="width:82px;flex-shrink:0;"><div class="fc-week">'+fmtDate(r.FechaVenc)+'</div>'
+          +'<div style="font-size:.58rem;color:'+col+';font-weight:600;">'+dias+'</div></div>'
+          +'<div style="flex:1;min-width:0;"><div style="font-size:.62rem;color:var(--g2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.Closer+' · '+nom+'</div>'
+          +'<div class="fc-track" style="margin-top:4px;"><div class="fc-fill" style="width:'+Math.round(r.Monto/maxF*100)+'%;background:'+col+';opacity:.75;"></div></div></div>'
+          +'<div class="fc-amt" style="color:'+col+';">'+fmtMoney(r.Monto)+'</div></div>';
+      }).join('')
+      +'<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;">'
+      +'<span style="font-size:.58rem;color:var(--g3);font-weight:600;text-transform:uppercase;">'+allFlujos.length+' pagos · '+fmtMoney(totalV)+' vencidos</span>'
+      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--gold-deep);">'+fmtMoney(totalF)+'</span></div>';
+    }
   }
-  function flujoColor(fechaVenc) {
-    const diff = Math.round((new Date(fechaVenc) - new Date(todayStr))/(1000*60*60*24));
-    if (diff < 0) return 'var(--red)';
-    if (diff <= 7) return 'var(--gold)';
-    return 'var(--green)';
+  // ── Comisiones ───────────────────────────────────────────────────────
+  const SIN_COM=['Guillermo'];
+  const comC={};
+  s.co.forEach(r=>{ if(SIN_COM.includes(r.Closer)) return; comC[r.Closer]=(comC[r.Closer]||0)+(r.ComCloser||0); });
+  const totalConf=s.co.reduce((s,r)=>s+(r.ComConf||0),0);
+  const cColors={Ignacio:'var(--gold-deep)',Sebastian:'var(--blue)',Karim:'var(--green)'};
+  const comRows=Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const totalComC=comRows.reduce((s,[,v])=>s+v,0);
+  const comEl=document.getElementById('comisiones-wrap');
+  if(comEl){
+    comEl.innerHTML=
+      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
+      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
+      +comRows.map(([c,v])=>
+        '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
+        +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.9rem;color:'+(cColors[c]||'var(--g2)')+';">'+c[0]+'</div>'
+        +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>'
+        +'<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div></div>'
+      ).join('')
+      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
+      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
+      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--gold-deep);">'+fmtMoney(totalComC)+'</span></div></div>'
+      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">'
+      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>'
+      +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
+      +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;color:var(--green);">C</div>'
+      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>'
+      +'<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totalConf)+'</div></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
+      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
+      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--green);">'+fmtMoney(totalConf)+'</span></div></div>';
   }
-
-  const flujosHTML = allFlujos.map(r => {
-    const color = flujoColor(r.FechaVenc);
-    const dias = diasLabel(r.FechaVenc);
-    const nombre = r.LeadMail ? r.LeadMail.split('@')[0] : '—';
-    return '<div class="fc-row">' +
-      '<div style="width:82px;flex-shrink:0;">' +
-        '<div class="fc-week">'+fmtDate(r.FechaVenc)+'</div>' +
-        '<div style="font-size:.58rem;color:'+color+';font-weight:600;">'+dias+'</div>' +
-      '</div>' +
-      '<div style="flex:1;min-width:0;">' +
-        '<div style="font-size:.62rem;color:var(--g2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.Closer+' · '+nombre+'</div>' +
-        '<div class="fc-track" style="margin-top:4px;"><div class="fc-fill" style="width:'+Math.round(r.Monto/maxF*100)+'%;background:'+color+';opacity:.75;"></div></div>' +
-      '</div>' +
-      '<div class="fc-amt" style="color:'+color+';">'+fmtMoney(r.Monto)+'</div>' +
-    '</div>';
-  }).join('');
-
-  const totalFlujos = allFlujos.reduce((s,r)=>s+r.Monto,0);
-  const totalVencido = pastVenc.reduce((s,r)=>s+r.Monto,0);
-
-  document.getElementById('flujos-list').innerHTML = (allFlujos.length ? flujosHTML : '<div style="font-size:.7rem;color:var(--g4);padding:12px 0;">Sin pagos programados</div>') +
-    (totalFlujos > 0 ? '<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">' +
-      '<div><div style="font-size:.58rem;color:var(--g3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">'+allFlujos.length+' pagos · '+fmtMoney(totalVencido)+' vencidos</div></div>' +
-      '<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(totalFlujos)+'</div>' +
-    '</div>' : '');
-
-  // Comisiones — excluir Guillermo (sin comisión)
-  const SIN_COM = ['Guillermo'];
-  const comByCloser = {};
-  s.co.forEach(r => {
-    if (SIN_COM.includes(r.Closer)) return;
-    if (!comByCloser[r.Closer]) comByCloser[r.Closer] = 0;
-    comByCloser[r.Closer] += (r.ComCloser||0);
-  });
-  const totalComConf = s.co.reduce((sum,r)=>sum+(r.ComConf||0),0);
-  const cavColors = {Ignacio:'var(--gold-deep)',Sebastian:'var(--blue)',Karim:'var(--green)'};
-
-  const closerComRows = Object.entries(comByCloser)
-    .filter(([,v]) => v > 0)
-    .sort((a,b) => b[1]-a[1]);
-
-  const totalComCloser = closerComRows.reduce((s,[,v])=>s+v,0);
-
-  document.getElementById('comisiones-wrap').innerHTML =
-    '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">' +
-      '<div style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>' +
-      closerComRows.map(([c,v]) =>
-        '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">' +
-          '<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.9rem;color:'+(cavColors[c]||'var(--g2)')+';">'+c[0]+'</div>' +
-          '<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>' +
-          '<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div>' +
-        '</div>'
-      ).join('') +
-      '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--bg);">' +
-        '<span style="font-size:.62rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total Closers</span>' +
-        '<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--gold-deep);">'+fmtMoney(totalComCloser)+'</span>' +
-      '</div>' +
-    '</div>' +
-    '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">' +
-      '<div style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>' +
-      '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">' +
-        '<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.9rem;color:var(--green);">C</div>' +
-        '<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>' +
-        '<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totalComConf)+'</div>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--bg);">' +
-        '<span style="font-size:.62rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total Confirmers</span>' +
-        '<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--green);">'+fmtMoney(totalComConf)+'</span>' +
-      '</div>' +
-    '</div>';
 }
 
 function renderTipo(s) {
-  const tipos = [
-    {key:'Nuevo',      icon:'✦', color:'var(--green)',     colorP:'var(--green-p)'},
-    {key:'CxC',        icon:'↻', color:'var(--gold)',      colorP:'var(--gold-pale)'},
-    {key:'Renovación', icon:'★', color:'var(--blue)',      colorP:'var(--blue-p)'},
-    {key:'Upsell',     icon:'▲', color:'#7c5cbf',         colorP:'#f0edf8'},
+  const tipos=[
+    {k:'Nuevo',     ico:'✦',col:'var(--green)',    bg:'var(--green-p)'},
+    {k:'CxC',       ico:'↻',col:'var(--gold)',     bg:'var(--gold-pale)'},
+    {k:'Renovación',ico:'★',col:'var(--blue)',     bg:'var(--blue-p)'},
+    {k:'Upsell',    ico:'▲',col:'#7c5cbf',        bg:'#f0edf8'},
   ];
-  const total = s.totCash || 1;
-  const html = tipos.map(t => {
-    const monto = s.tipoBreakdown[t.key] || 0;
-    const pct = Math.round(monto/total*100);
-    return `<div class="kpi" style="min-width:110px;border-top:3px solid ${t.color};">
-      <div class="kpi-lbl" style="display:flex;align-items:center;gap:4px;">
-        <span style="color:${t.color};font-size:.7rem;">${t.icon}</span>${t.key.toUpperCase()}
-      </div>
-      <div class="kpi-val" style="color:${t.color};font-size:1.5rem;">${fmtMoney(monto)}</div>
-      <div class="kpi-sub">${pct}% del cash total</div>
-    </div>`;
+  const total=s.totCash||1;
+  const el=document.getElementById('tipo-row');
+  if(!el) return;
+  el.innerHTML=tipos.map(t=>{
+    const m=s.tipoBreakdown[t.k]||0, p=Math.round(m/total*100);
+    return '<div class="kpi" style="min-width:110px;border-top:3px solid '+t.col+';">'
+      +'<div class="kpi-lbl" style="display:flex;align-items:center;gap:4px;"><span style="color:'+t.col+'">'+t.ico+'</span>'+t.k.toUpperCase()+'</div>'
+      +'<div class="kpi-val" style="color:'+t.col+';font-size:1.5rem;">'+fmtMoney(m)+'</div>'
+      +'<div class="kpi-sub">'+p+'% del cash</div>'
+    +'</div>';
   }).join('');
-  document.getElementById('tipo-row').innerHTML = html;
 
-  // Also update cash chart to show stacked by tipo
+  // Stacked cash chart
   destroyChart('cash');
-  const weeks = Object.keys(s.weekCashTipo).sort();
-  const ctx = document.getElementById('c-cash').getContext('2d');
-  charts['cash'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: weeks.map(fmtDate),
-      datasets: [
-        {label:'Nuevo',      data:weeks.map(w=>Math.round(s.weekCashTipo[w].Nuevo||0)),      backgroundColor:'rgba(61,107,80,.7)',  borderColor:'var(--green)', borderWidth:1},
-        {label:'CxC',        data:weeks.map(w=>Math.round(s.weekCashTipo[w].CxC||0)),        backgroundColor:'rgba(168,131,42,.7)', borderColor:'var(--gold)',  borderWidth:1},
-        {label:'Renovación', data:weeks.map(w=>Math.round(s.weekCashTipo[w]['Renovación']||0)), backgroundColor:'rgba(42,82,122,.7)',  borderColor:'var(--blue)',  borderWidth:1},
-        {label:'Upsell',     data:weeks.map(w=>Math.round(s.weekCashTipo[w].Upsell||0)),     backgroundColor:'rgba(124,92,191,.7)', borderColor:'#7c5cbf',      borderWidth:1},
-      ]
-    },
-    options: {
-      responsive:true,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:10,color:'#68655e'}}},
-      scales:{
-        x:{stacked:true,grid:{color:'#f0ece4'}},
-        y:{stacked:true,grid:{color:'#f0ece4'},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}}
-      }
-    }
+  const weeks=Object.keys(s.weekCashTipo).sort();
+  const ctx=document.getElementById('c-cash').getContext('2d');
+  charts['cash']=new Chart(ctx,{
+    type:'bar',
+    data:{labels:weeks.map(fmtDate),datasets:[
+      {label:'Nuevo',      data:weeks.map(w=>Math.round(s.weekCashTipo[w].Nuevo||0)),      backgroundColor:'rgba(61,107,80,.65)', borderColor:'var(--green)',borderWidth:1},
+      {label:'CxC',        data:weeks.map(w=>Math.round(s.weekCashTipo[w].CxC||0)),        backgroundColor:'rgba(168,131,42,.65)',borderColor:'var(--gold)', borderWidth:1},
+      {label:'Renovación', data:weeks.map(w=>Math.round((s.weekCashTipo[w]['Renovación'])||0)),backgroundColor:'rgba(42,82,122,.65)', borderColor:'var(--blue)', borderWidth:1},
+      {label:'Upsell',     data:weeks.map(w=>Math.round(s.weekCashTipo[w].Upsell||0)),     backgroundColor:'rgba(124,92,191,.65)',borderColor:'#7c5cbf',     borderWidth:1},
+    ]},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:10,color:'#68655e'}}},
+      scales:{x:{stacked:true,grid:{color:'#f0ece4'}},y:{stacked:true,grid:{color:'#f0ece4'},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}}}}
   });
 }
 
@@ -1372,15 +1166,7 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   el.classList.add('active');
   window.scrollTo(0,0);
-  setTimeout(function() {
-    if (dataLoaded) {
-      const s = computeStats();
-      if (id === 'ventas') renderVentas(s);
-      if (id === 'closers') { renderClosers(s); renderRatesChart(s); }
-      if (id === 'confirmer') renderConfirmer(s);
-      if (id === 'insights') renderInsights(s);
-    }
-  }, 50);
+  if(dataLoaded && id==='ventas') { const s=computeStats(); renderVentas(s); }
 }
 
 function toggleCloser(name) {
@@ -1390,8 +1176,8 @@ function toggleCloser(name) {
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
-fetchAllData();
+fetchData();
 </script>
-</div><!-- /main-content -->
+</div><!-- /main-wrap -->
 </body>
 </html>
