@@ -482,7 +482,7 @@ canvas { max-width:100%; }
 //  LIVE DATA — fetched from Google Sheets CSV
 // ═══════════════════════════════════════════════
 // Google Apps Script endpoint — no CORS issues
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzTzv4pgA-OlECn0M_v0X1-7qjob3QVIWYULlvriIyFdqOoBlNVpmCRxvnqBIIQHgeQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlyjEnU474UcqgaqYuAdrMJJFh7QIGuoa-EEGachj1xLvU4H1HqSGzWOpdjjzHeKNQ/exec';
 
 // CSV parser — handles quoted fields, \r\n, and Google Sheets export format
 function parseCSV(text) {
@@ -632,8 +632,19 @@ function transformCL(rows) {
   })).filter(r => r.Fecha && r.Closer && r.Closer !== 'Closer');
 }
 
+function transformPC(rows) {
+  return rows.filter(r => col(r,'fechavencimiento','fecha vencimiento') && col(r,'montopagado','monto')).map(r => ({
+    FechaVenc: toDate(col(r,'fechavencimiento','fecha vencimiento')),
+    FechaPago: toDate(col(r,'fechadepagoreal','fecha de pago real')),
+    Closer: col(r,'closer'),
+    Monto: toNum(col(r,'montopagado','monto pagado','monto')),
+    Estado: (col(r,'estado') || '').toString().trim(),
+    LeadMail: col(r,'leadmail','lead mail'),
+  })).filter(r => r.FechaVenc);
+}
+
 // Global data store
-let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [];
+let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
 let dataLoaded = false;
 
 async function fetchAllData() {
@@ -648,6 +659,7 @@ async function fetchAllData() {
     RAW_V  = transformV(json['VENTAS'] || []);
     RAW_C  = transformCO(json['COBROS_DIARIOS'] || []);
     RAW_CL = transformCL(json['CLOSER_LOG'] || []);
+    RAW_PC = transformPC(json['PLAN_CUOTAS'] || []);
     dataLoaded = true;
 
     // Set date range from actual data
@@ -1151,17 +1163,102 @@ function renderVentas(s) {
       </div>${rows}
     </div>`;
 
-  // Forecast semanal from cobros
-  const weekC={};
-  s.co.forEach(r=>{const w=weekOf(r.Fecha);weekC[w]=(weekC[w]||0)+r.Monto;});
-  const wks=Object.keys(weekC).sort();
-  const maxW=Math.max(...wks.map(w=>weekC[w]));
-  document.getElementById('fc-list').innerHTML = wks.map(w=>`
-    <div class="fc-row">
-      <div class="fc-week">${fmtDate(w)}</div>
-      <div class="fc-track"><div class="fc-fill" style="width:${Math.round(weekC[w]/maxW*100)}%"></div></div>
-      <div class="fc-amt">${fmtMoney(weekC[w])}</div>
-    </div>`).join('');
+  // Flujos proyectados desde PLAN_CUOTAS
+  const todayStr = new Date().toISOString().slice(0,10);
+  const futuros = RAW_PC
+    .filter(r => r.Estado !== 'Pagado' && r.FechaVenc >= todayStr)
+    .sort((a,b) => a.FechaVenc.localeCompare(b.FechaVenc));
+
+  const pastVenc = RAW_PC
+    .filter(r => r.Estado !== 'Pagado' && r.FechaVenc < todayStr)
+    .sort((a,b) => b.FechaVenc.localeCompare(a.FechaVenc));
+
+  const allFlujos = [...pastVenc, ...futuros];
+  const maxF = allFlujos.length ? Math.max(...allFlujos.map(r=>r.Monto)) : 1;
+
+  function diasLabel(fechaVenc) {
+    const diff = Math.round((new Date(fechaVenc) - new Date(todayStr))/(1000*60*60*24));
+    if (diff === 0) return 'Hoy';
+    if (diff > 0) return 'en '+diff+'d';
+    return Math.abs(diff)+'d vencido';
+  }
+  function flujoColor(fechaVenc) {
+    const diff = Math.round((new Date(fechaVenc) - new Date(todayStr))/(1000*60*60*24));
+    if (diff < 0) return 'var(--red)';
+    if (diff <= 7) return 'var(--gold)';
+    return 'var(--green)';
+  }
+
+  const flujosHTML = allFlujos.map(r => {
+    const color = flujoColor(r.FechaVenc);
+    const dias = diasLabel(r.FechaVenc);
+    const nombre = r.LeadMail ? r.LeadMail.split('@')[0] : '—';
+    return '<div class="fc-row">' +
+      '<div style="width:82px;flex-shrink:0;">' +
+        '<div class="fc-week">'+fmtDate(r.FechaVenc)+'</div>' +
+        '<div style="font-size:.58rem;color:'+color+';font-weight:600;">'+dias+'</div>' +
+      '</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:.62rem;color:var(--g2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.Closer+' · '+nombre+'</div>' +
+        '<div class="fc-track" style="margin-top:4px;"><div class="fc-fill" style="width:'+Math.round(r.Monto/maxF*100)+'%;background:'+color+';opacity:.75;"></div></div>' +
+      '</div>' +
+      '<div class="fc-amt" style="color:'+color+';">'+fmtMoney(r.Monto)+'</div>' +
+    '</div>';
+  }).join('');
+
+  const totalFlujos = allFlujos.reduce((s,r)=>s+r.Monto,0);
+  const totalVencido = pastVenc.reduce((s,r)=>s+r.Monto,0);
+
+  document.getElementById('flujos-list').innerHTML = (allFlujos.length ? flujosHTML : '<div style="font-size:.7rem;color:var(--g4);padding:12px 0;">Sin pagos programados</div>') +
+    (totalFlujos > 0 ? '<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">' +
+      '<div><div style="font-size:.58rem;color:var(--g3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">'+allFlujos.length+' pagos · '+fmtMoney(totalVencido)+' vencidos</div></div>' +
+      '<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(totalFlujos)+'</div>' +
+    '</div>' : '');
+
+  // Comisiones — excluir Guillermo (sin comisión)
+  const SIN_COM = ['Guillermo'];
+  const comByCloser = {};
+  s.co.forEach(r => {
+    if (SIN_COM.includes(r.Closer)) return;
+    if (!comByCloser[r.Closer]) comByCloser[r.Closer] = 0;
+    comByCloser[r.Closer] += (r.ComCloser||0);
+  });
+  const totalComConf = s.co.reduce((sum,r)=>sum+(r.ComConf||0),0);
+  const cavColors = {Ignacio:'var(--gold-deep)',Sebastian:'var(--blue)',Karim:'var(--green)'};
+
+  const closerComRows = Object.entries(comByCloser)
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1]);
+
+  const totalComCloser = closerComRows.reduce((s,[,v])=>s+v,0);
+
+  document.getElementById('comisiones-wrap').innerHTML =
+    '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">' +
+      '<div style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>' +
+      closerComRows.map(([c,v]) =>
+        '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">' +
+          '<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.9rem;color:'+(cavColors[c]||'var(--g2)')+';">'+c[0]+'</div>' +
+          '<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>' +
+          '<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div>' +
+        '</div>'
+      ).join('') +
+      '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--bg);">' +
+        '<span style="font-size:.62rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total Closers</span>' +
+        '<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--gold-deep);">'+fmtMoney(totalComCloser)+'</span>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">' +
+      '<div style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>' +
+      '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">' +
+        '<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.9rem;color:var(--green);">C</div>' +
+        '<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>' +
+        '<div style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totalComConf)+'</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--bg);">' +
+        '<span style="font-size:.62rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total Confirmers</span>' +
+        '<span style="font-family:\'Jost\',sans-serif;font-weight:700;color:var(--green);">'+fmtMoney(totalComConf)+'</span>' +
+      '</div>' +
+    '</div>';
 }
 
 function renderTipo(s) {
