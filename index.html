@@ -353,13 +353,13 @@ canvas { max-width:100%; }
 <!-- HEADER -->
 <div id="loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;background:#fff;position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;">
   <div style="width:32px;height:32px;border:3px solid #e2ddd4;border-top-color:#a8832a;border-radius:50%;animation:spin .8s linear infinite;"></div>
-  <div style="font-family:'DM Sans',sans-serif;font-size:.72rem;color:#9a978f;letter-spacing:.06em;">Cargando datos...</div>
+  <div id="loader-msg" style="font-family:'DM Sans',sans-serif;font-size:.72rem;color:#9a978f;letter-spacing:.06em;">Cargando datos...</div>
 </div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <div id="error-banner" style="display:none;background:#f5e8e4;border-bottom:2px solid #944030;padding:10px 16px;display:flex;gap:10px;align-items:center;">
   <span id="error-msg" style="font-size:.7rem;color:#944030;flex:1;"></span>
   <button onclick="loadData()" style="background:#944030;color:#fff;border:none;padding:5px 12px;font-size:.65rem;border-radius:4px;cursor:pointer;">Reintentar</button>
 </div>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <div class="header">
   <div class="header-top">
     <div class="logo">CONVIERTE <span>OPS</span></div>
@@ -463,19 +463,14 @@ canvas { max-width:100%; }
 
 <script>
 // ═══════════════════════════════════════════════
-//  RAW DATA — loaded live from Google Sheets
+//  RAW DATA
 // ═══════════════════════════════════════════════
-let RAW_MD = [];
-let RAW_CC = [];
-let RAW_V  = [];
-let RAW_C  = [];
-let RAW_CL = [];
-let RAW_PC = [];
+let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
 
 // ═══════════════════════════════════════════════
 //  FILTERS
 // ═══════════════════════════════════════════════
-let dateFrom='',dateTo='';
+let dateFrom='', dateTo='';
 
 function buildMonthPresets() {
   const MNAMES={'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
@@ -554,34 +549,30 @@ function computeStats() {
   const v  = RAW_V.filter(r  => inRange(r['Fecha Cierre']));
   const co = RAW_C.filter(r  => inRange(r.Fecha));
 
-  // Asistencias reales desde CLOSER_LOG
-  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
-  const clFilt = RAW_CL.filter(r=>inRange(r.Fecha));
-  const totAg = md.reduce((s,r)=>s+r.Agendas,0);
-  const totAs = clFilt.length
-    ? clFilt.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length
-    : md.reduce((s,r)=>s+r.Asistencias,0);
-  const totCi = md.reduce((s,r)=>s+r.Cierres,0);
+  const NO_ASISTE=['no asiste','cancelada','cancelado'];
+  const clFilt=RAW_CL.filter(r=>inRange(r.Fecha));
+  const totAg=md.reduce((s,r)=>s+r.Agendas,0);
+  const totAs=clFilt.length?clFilt.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length:md.reduce((s,r)=>s+r.Asistencias,0);
+  const totCi=md.reduce((s,r)=>s+r.Cierres,0);
   const totCash = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
   const totCobrado = v.reduce((s,r)=>s+r.Cobrado,0);
   const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
 
-  // Per closer — asistencias desde CLOSER_LOG
   const allCN=[...new Set([...md.map(r=>r.Closer),...clFilt.map(r=>r.Closer)])].filter(Boolean);
   const ORDER=['Ignacio','Sebastian','Karim','Guillermo'];
   const closers=ORDER.filter(c=>allCN.includes(c)).concat(allCN.filter(c=>!ORDER.includes(c)));
   const byCloser={};
   closers.forEach(c=>{
-    const rows  =md.filter(r=>r.Closer===c);
+    const rows=md.filter(r=>r.Closer===c);
     const coRows=co.filter(r=>r.Closer===c);
-    const vRows =v.filter(r=>r.Closer===c);
+    const vRows=v.filter(r=>r.Closer===c);
     const clRows=clFilt.filter(r=>r.Closer===c);
     byCloser[c]={
-      ag:  rows.reduce((s,r)=>s+r.Agendas,0),
-      as:  clRows.length ? clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length : rows.reduce((s,r)=>s+r.Asistencias,0),
-      ci:  rows.reduce((s,r)=>s+r.Cierres,0),
-      se:  rows.reduce((s,r)=>s+r.Seguimientos,0),
+      ag:rows.reduce((s,r)=>s+r.Agendas,0),
+      as:clRows.length?clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length:rows.reduce((s,r)=>s+r.Asistencias,0),
+      ci:rows.reduce((s,r)=>s+r.Cierres,0),
+      se:rows.reduce((s,r)=>s+r.Seguimientos,0),
       cash:coRows.reduce((s,r)=>s+r.Monto,0),
       ventas:vRows.length,
     };
@@ -613,9 +604,7 @@ function computeStats() {
     confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
   });
 
-  const tipoB={};
-  ['Nuevo','CxC','Renovación','Upsell'].forEach(t=>{tipoB[t]=co.filter(r=>r.Tipo===t).reduce((s,r)=>s+r.Monto,0);});
-  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers,tipoB};
+  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
 }
 
 // ═══════════════════════════════════════════════
@@ -631,8 +620,8 @@ function renderAll() {
   renderClosers(s);
   renderRatesChart(s);
   renderConfirmer(s);
+  renderVentas(s);
   renderInsights(s);
-  if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
 }
 
 function renderRangeLabel() {
@@ -916,65 +905,17 @@ function renderVentas(s) {
       </div>${rows}
     </div>`;
 
-  // Flujos proyectados
-  const hoy=new Date().toISOString().slice(0,10);
-  const pend=RAW_PC.filter(r=>(r.Estado||'').toLowerCase()!=='pagado').sort((a,b)=>a.FechaVenc.localeCompare(b.FechaVenc));
-  const fEl=document.getElementById('flujos-list');
-  if(fEl){
-    if(!pend.length){
-      fEl.innerHTML='<div style="font-size:.7rem;color:var(--g4);padding:12px 0;">Sin pagos pendientes</div>';
-    } else {
-      const maxF=Math.max(...pend.map(r=>r.Monto));
-      const totF=pend.reduce((s,r)=>s+r.Monto,0);
-      const totV=pend.filter(r=>r.FechaVenc<hoy).reduce((s,r)=>s+r.Monto,0);
-      function fCol(d){const df=Math.round((new Date(d)-new Date(hoy))/86400000);return df<0?'var(--red)':df<=7?'var(--gold)':'var(--green)';}
-      function fDia(d){const df=Math.round((new Date(d)-new Date(hoy))/86400000);return df===0?'Hoy':df>0?'en '+df+'d':Math.abs(df)+'d vencido';}
-      fEl.innerHTML=pend.map(r=>{
-        const col=fCol(r.FechaVenc),dia=fDia(r.FechaVenc),nom=(r.LeadMail||'').split('@')[0]||'—';
-        return '<div class="fc-row">'
-          +'<div style="width:82px;flex-shrink:0;"><div class="fc-week">'+fmtDate(r.FechaVenc)+'</div>'
-          +'<div style="font-size:.58rem;color:'+col+';font-weight:600;">'+dia+'</div></div>'
-          +'<div style="flex:1;min-width:0;"><div style="font-size:.62rem;color:var(--g2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.Closer+' · '+nom+'</div>'
-          +'<div class="fc-track" style="margin-top:4px;"><div class="fc-fill" style="width:'+Math.round(r.Monto/maxF*100)+'%;background:'+col+';opacity:.75;"></div></div></div>'
-          +'<div class="fc-amt" style="color:'+col+';">'+fmtMoney(r.Monto)+'</div></div>';
-      }).join('')
-      +'<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;">'
-      +'<span style="font-size:.58rem;color:var(--g3);font-weight:600;text-transform:uppercase;">'+pend.length+' pagos · '+fmtMoney(totV)+' vencidos</span>'
-      +'<span style="font-weight:700;color:var(--gold-deep);">'+fmtMoney(totF)+'</span></div>';
-    }
-  }
-  // Comisiones
-  const SIN=['Guillermo'];
-  const comC={};
-  s.co.forEach(r=>{if(SIN.includes(r.Closer))return;comC[r.Closer]=(comC[r.Closer]||0)+(r.ComCloser||0);});
-  const totConf=s.co.reduce((s,r)=>s+(r.ComConf||0),0);
-  const cCol={Ignacio:'var(--gold-deep)',Sebastian:'var(--blue)',Karim:'var(--green)'};
-  const comRows=Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const totComC=comRows.reduce((s,[,v])=>s+v,0);
-  const cEl=document.getElementById('comisiones-wrap');
-  if(cEl){
-    cEl.innerHTML=
-      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
-      +comRows.map(([c,v])=>
-        '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-        +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+(cCol[c]||'var(--g2)')+';">'+c[0]+'</div>'
-        +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>'
-        +'<div style="font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div></div>'
-      ).join('')
-      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
-      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
-      +'<span style="font-weight:700;color:var(--gold-deep);">'+fmtMoney(totComC)+'</span></div></div>'
-      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>'
-      +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-      +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);">C</div>'
-      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>'
-      +'<div style="font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
-      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
-      +'<span style="font-weight:700;color:var(--green);">'+fmtMoney(totConf)+'</span></div></div>';
-  }
+  // Forecast semanal from cobros
+  const weekC={};
+  s.co.forEach(r=>{const w=weekOf(r.Fecha);weekC[w]=(weekC[w]||0)+r.Monto;});
+  const wks=Object.keys(weekC).sort();
+  const maxW=Math.max(...wks.map(w=>weekC[w]));
+  document.getElementById('fc-list').innerHTML = wks.map(w=>`
+    <div class="fc-row">
+      <div class="fc-week">${fmtDate(w)}</div>
+      <div class="fc-track"><div class="fc-fill" style="width:${Math.round(weekC[w]/maxW*100)}%"></div></div>
+      <div class="fc-amt">${fmtMoney(weekC[w])}</div>
+    </div>`).join('');
 }
 
 function renderInsights(s) {
@@ -1028,7 +969,6 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   el.classList.add('active');
   window.scrollTo(0,0);
-  if(id==='ventas'&&RAW_C.length) { const s=computeStats(); renderVentas(s); }
 }
 
 function toggleCloser(name) {
@@ -1036,30 +976,28 @@ function toggleCloser(name) {
 }
 
 // ═══════════════════════════════════════════════
-//  CSV PARSER
+//  LIVE FETCH
 // ═══════════════════════════════════════════════
 function parseCSV(text) {
-  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
-  function splitLine(line) {
-    const vals=[]; let cur='', inQ=false;
+  const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
+  function split(line) {
+    const vals=[]; let cur='',inQ=false;
     for(let i=0;i<line.length;i++) {
       const ch=line[i];
       if(ch==='"') { if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ; }
-      else if(ch===','&&!inQ) { vals.push(cur.trim()); cur=''; }
+      else if(ch===','&&!inQ) { vals.push(cur.trim());cur=''; }
       else cur+=ch;
     }
     vals.push(cur.trim());
     return vals;
   }
-  const headers=splitLine(lines[0]);
+  const headers=split(lines[0]);
   return lines.slice(1).filter(l=>l.trim()).map(line=>{
-    const vals=splitLine(line);
-    const obj={};
+    const vals=split(line),obj={};
     headers.forEach((h,i)=>{ obj[h]=(vals[i]||'').replace(/^"|"$/g,''); });
     return obj;
   });
 }
-
 function toDate(s) {
   if(!s||s===''||s==='NaT') return null;
   s=s.trim();
@@ -1071,1335 +1009,77 @@ function toDate(s) {
 }
 function toN(v) { const n=parseFloat(String(v||0).replace(/,/g,'.')); return isNaN(n)?0:n; }
 
-// ═══════════════════════════════════════════════
-//  LIVE FETCH
-// ═══════════════════════════════════════════════
 async function loadData() {
-  document.getElementById('loader').style.display = 'flex';
-  document.getElementById('error-banner').style.display = 'none';
+  document.getElementById('loader').style.display='flex';
+  document.getElementById('error-banner').style.display='none';
   try {
-    const [r1,r2,r3,r4,r5] = await Promise.all([
-      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1996565453&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=355815377&single=true&output=csv'),
-      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=136016178&single=true&output=csv'),  fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1724312474&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1428682471&single=true&output=csv')
-    ]);
-    const [t1,t2,t3,t4,t5] = await Promise.all([
-      r1.text(),r2.text(),r3.text(),r4.text(),r5.text()
-    ]);
-
-    RAW_MD = parseCSV(t1)
-      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
-      .map(r=>({
-        Fecha:       toDate(r['Fecha']),
-        Closer:      r['Closer'],
-        Agendas:     toN(r['Agendas']),
-        Asistencias: toN(r['Asistencias']),
-        Cierres:     toN(r['Cierres']),
-        Seguimientos:toN(r['Seguimientos']),
-        CashCollect: toN(r['Cash Collect ($)']),
-      })).filter(r=>r.Fecha&&r.Closer);
-
-    RAW_CC = parseCSV(t2)
-      .filter(r=>r['Fecha']&&r['Confirmer'])
-      .map(r=>({
-        Fecha:    toDate(r['Fecha']),
-        Confirmer:r['Confirmer'],
-        Estado:   r['Estado']||'',
-        Closer:   r['Closer']||'',
-      })).filter(r=>r.Fecha);
-
-    RAW_V = parseCSV(t3)
-      .filter(r=>r['Cliente']&&r['Fecha Cierre']&&r['Venta ($)'])
-      .map(r=>({
-        Cliente:       r['Cliente'],
-        'Fecha Cierre':toDate(r['Fecha Cierre']),
-        Closer:        r['Closer'],
-        Plan:          r['Plan'],
-        Venta:         toN(r['Venta ($)']),
-        Cobrado:       toN(r['Cobrado ($)']),
-        Pendiente:     toN(r['PDTE PAGO ($)']),
-      })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
-
-    RAW_C = parseCSV(t4)
-      .filter(r=>r['Fecha Pago']&&r['Monto Pagado'])
-      .map(r=>({
-        Fecha:    toDate(r['Fecha Pago']),
-        Closer:   r['Closer'],
-        Monto:    toN(r['Monto Pagado']),
-        ComCloser:toN(r['Comisión Closer']),
-        ComConf:  toN(r['Comisión Confirmer']),
-        Tipo:     r['Tipo']||'CxC',
-      })).filter(r=>r.Fecha&&r.Monto>0);
-
-    RAW_CL = parseCSV(t5)
-      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
-      .map(r=>({
-        Fecha:  toDate(r['Fecha']),
-        Closer: r['Closer'],
-        Evento: r['Evento']||'',
-      })).filter(r=>r.Fecha&&r.Closer);
-
-    // Set date range from actual data
-    const allDates = [...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
-    if(allDates.length) {
-      dateFrom = allDates[0];
-      dateTo   = allDates[allDates.length-1];
-      document.getElementById('date-from').value = dateFrom;
-      document.getElementById('date-to').value   = dateTo;
+    const sheets = [
+      ['MD', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1069783160&single=true&output=csv'],
+      ['CC', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1996565453&single=true&output=csv'],
+      ['CL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=355815377&single=true&output=csv'],
+      ['V',  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=136016178&single=true&output=csv'],
+      ['CO', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1724312474&single=true&output=csv'],
+      ['PC', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1428682471&single=true&output=csv'],
+    ];
+    const texts = {};
+    for (const [k, url] of sheets) {
+      document.getElementById('loader-msg').textContent = 'Cargando ' + k + '...';
+      const res = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-cache',
+      });
+      if (!res.ok) throw new Error(k + ': HTTP ' + res.status);
+      texts[k] = await res.text();
     }
+    RAW_MD=parseCSV(texts.MD).filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer').map(r=>({
+      Fecha:toDate(r['Fecha']),Closer:r['Closer'],
+      Agendas:toN(r['Agendas']),Asistencias:toN(r['Asistencias']),
+      Cierres:toN(r['Cierres']),Seguimientos:toN(r['Seguimientos']),
+      CashCollect:toN(r['Cash Collect ($)']),
+    })).filter(r=>r.Fecha&&r.Closer);
 
-    document.getElementById('loader').style.display = 'none';
-    const now = new Date();
-    document.getElementById('last-updated').textContent =
-      'Actualizado: ' + now.toLocaleDateString('es-CL') + ' ' +
-      now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    RAW_CC=parseCSV(texts.CC).filter(r=>r['Fecha']&&r['Confirmer']).map(r=>({
+      Fecha:toDate(r['Fecha']),Confirmer:r['Confirmer'],
+      Estado:r['Estado']||'',Closer:r['Closer']||'',
+    })).filter(r=>r.Fecha);
 
+    RAW_CL=parseCSV(texts.CL).filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer').map(r=>({
+      Fecha:toDate(r['Fecha']),Closer:r['Closer'],Evento:r['Evento']||'',
+    })).filter(r=>r.Fecha&&r.Closer);
+
+    RAW_V=parseCSV(texts.V).filter(r=>r['Cliente']&&r['Fecha Cierre']&&r['Venta ($)']).map(r=>({
+      Cliente:r['Cliente'],'Fecha Cierre':toDate(r['Fecha Cierre']),
+      Closer:r['Closer'],Plan:r['Plan'],
+      Venta:toN(r['Venta ($)']),Cobrado:toN(r['Cobrado ($)']),Pendiente:toN(r['PDTE PAGO ($)']),
+    })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
+
+    RAW_C=parseCSV(texts.CO).filter(r=>r['Fecha Pago']&&r['Monto Pagado']).map(r=>({
+      Fecha:toDate(r['Fecha Pago']),Closer:r['Closer'],
+      Monto:toN(r['Monto Pagado']),ComCloser:toN(r['Comisión Closer']),
+      ComConf:toN(r['Comisión Confirmer']),Tipo:r['Tipo']||'CxC',
+    })).filter(r=>r.Fecha&&r.Monto>0);
+
+    RAW_PC=parseCSV(texts.PC).filter(r=>r['Fecha Vencimiento']).map(r=>({
+      FechaVenc:toDate(r['Fecha Vencimiento']),Closer:r['Closer'],
+      Monto:toN(r['Por Pagar']),Estado:r['Estado']||'',LeadMail:r['Lead Mail']||'',
+    })).filter(r=>r.FechaVenc&&r.Monto>0);
+
+    const allDates=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
+    if(allDates.length) {
+      dateFrom=allDates[0]; dateTo=allDates[allDates.length-1];
+      document.getElementById('date-from').value=dateFrom;
+      document.getElementById('date-to').value=dateTo;
+    }
+    document.getElementById('loader').style.display='none';
+    document.getElementById('last-updated').textContent='Actualizado: '+new Date().toLocaleDateString('es-CL')+' '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     buildMonthPresets();
     renderAll();
-
   } catch(err) {
-    document.getElementById('loader').style.display = 'none';
-    document.getElementById('error-banner').style.display = 'flex';
-    document.getElementById('error-msg').textContent = 'Error: ' + err.message;
-  }
-}
-
-// ═══════════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════════
-loadData();
-</script>
-</body>
-</html>    const [r0,r1,r2,r3,r4,r5] = await Promise.all([
-      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1069783160&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1996565453&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=355815377&single=true&output=csv'),
-      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=136016178&single=true&output=csv'),  fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1724312474&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1428682471&single=true&output=csv')
-    ]);
-    const [t0,t1,t2,t3,t4,t5] = await Promise.all([
-      r0.text(),r1.text(),r2.text(),r3.text(),r4.text(),r5.text()
-    ]);
-
-    RAW_MD = parseCSV(t0)
-      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
-      .map(r=>({
-        Fecha:       toDate(r['Fecha']),
-        Closer:      r['Closer'],
-        Agendas:     toN(r['Agendas']),
-        Asistencias: toN(r['Asistencias']),
-        Cierres:     toN(r['Cierres']),
-        Seguimientos:toN(r['Seguimientos']),
-        CashCollect: toN(r['Cash Collect ($)']),
-      })).filter(r=>r.Fecha&&r.Closer);
-
-    RAW_CC = parseCSV(t1)
-      .filter(r=>r['Fecha']&&r['Confirmer'])
-      .map(r=>({
-        Fecha:     toDate(r['Fecha']),
-        Confirmer: r['Confirmer'],
-        Estado:    r['Estado']||'',
-        Closer:    r['Closer']||'',
-      })).filter(r=>r.Fecha);
-
-    RAW_CL = parseCSV(t2)
-      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
-      .map(r=>({
-        Fecha:  toDate(r['Fecha']),
-        Closer: r['Closer'],
-        Evento: r['Evento']||'',
-        Monto:  toN(r['Monto']),
-        Oferta: r['Oferta']||'',
-      })).filter(r=>r.Fecha&&r.Closer);
-
-    RAW_V = parseCSV(t3)
-      .filter(r=>r['Cliente']&&r['Fecha Cierre']&&r['Venta ($)'])
-      .map(r=>({
-        Cliente:       r['Cliente'],
-        'Fecha Cierre':toDate(r['Fecha Cierre']),
-        Closer:        r['Closer'],
-        Plan:          r['Plan'],
-        Venta:         toN(r['Venta ($)']),
-        Cobrado:       toN(r['Cobrado ($)']),
-        Pendiente:     toN(r['PDTE PAGO ($)']),
-      })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
-
-    RAW_C = parseCSV(t4)
-      .filter(r=>r['Fecha Pago']&&r['Monto Pagado'])
-      .map(r=>({
-        Fecha:     toDate(r['Fecha Pago']),
-        Closer:    r['Closer'],
-        Monto:     toN(r['Monto Pagado']),
-        ComCloser: toN(r['Comisión Closer']),
-        ComConf:   toN(r['Comisión Confirmer']),
-        Tipo:      r['Tipo']||'CxC',
-      })).filter(r=>r.Fecha&&r.Monto>0);
-
-    RAW_PC = parseCSV(t5)
-      .filter(r=>r['Fecha Vencimiento'])
-      .map(r=>({
-        FechaVenc: toDate(r['Fecha Vencimiento']),
-        FechaPago: toDate(r['Fecha de Pago Real']),
-        Closer:    r['Closer'],
-        Monto:     toN(r['Por Pagar']),
-        Estado:    r['Estado']||'',
-        LeadMail:  r['Lead Mail']||'',
-      })).filter(r=>r.FechaVenc&&r.Monto>0);<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Dashboard Comercial</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-<style>
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html, body { background:#ffffff; color:#1a1916; font-family:'DM Sans',sans-serif; min-height:100vh; }
-
-:root {
-  --white: #ffffff;
-  --bg:    #f7f5f0;
-  --bg2:   #eeebe3;
-  --border:#e2ddd4;
-  --border2:#ccc8be;
-
-  --gold:      #a8832a;
-  --gold-l:    #c9a84c;
-  --gold-pale: #f6f0df;
-  --gold-deep: #7a5f1a;
-  --gold-grad: linear-gradient(135deg,#c9a84c,#a8832a);
-
-  --g1:#1a1916; --g2:#3a3835; --g3:#68655e; --g4:#9a978f; --g5:#ccc8be;
-
-  --green:#3d6b50; --green-p:#e5f0ea;
-  --red:  #944030; --red-p:  #f5e8e4;
-  --blue: #2a527a; --blue-p: #e3edf5;
-
-  --sh: 0 2px 8px rgba(26,25,22,.07);
-  --sh2: 0 4px 20px rgba(26,25,22,.10);
-  --r: 8px; --r2: 12px;
-}
-
-/* ── HEADER ───────────────────────────────── */
-.header {
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  padding: 16px 16px 0;
-  position: sticky; top:0; z-index:200;
-  box-shadow: var(--sh);
-}
-
-.header-top {
-  display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;
-}
-
-.logo {
-  font-family:'Jost',sans-serif; font-weight:700; font-size:1.35rem;
-  color:var(--g1); letter-spacing:.01em; line-height:1;
-}
-.logo span { color:var(--gold); }
-
-.live {
-  display:inline-flex; align-items:center; gap:5px;
-  font-size:.6rem; color:var(--gold); letter-spacing:.07em; font-weight:500;
-}
-.live::before {
-  content:''; width:5px; height:5px; border-radius:50%; background:var(--gold);
-  animation: blink 2s infinite;
-}
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
-
-/* Date filter bar */
-.date-bar {
-  display:flex; align-items:center; gap:8px; padding-bottom:12px;
-  overflow-x:auto; scrollbar-width:none;
-}
-.date-bar::-webkit-scrollbar{display:none}
-
-.date-label {
-  font-size:.6rem; color:var(--g4); white-space:nowrap;
-  text-transform:uppercase; letter-spacing:.07em; flex-shrink:0;
-}
-
-.date-input {
-  background:var(--bg); border:1px solid var(--border); color:var(--g1);
-  font-family:'DM Sans',sans-serif; font-size:.7rem; padding:5px 8px;
-  border-radius:6px; flex-shrink:0; outline:none; cursor:pointer;
-  transition: border-color .15s;
-}
-.date-input:focus { border-color:var(--gold); }
-
-.date-sep { color:var(--g4); font-size:.7rem; flex-shrink:0; }
-
-.preset-btns { display:flex; gap:5px; flex-shrink:0; }
-
-.preset {
-  background:var(--bg); border:1px solid var(--border); color:var(--g3);
-  font-family:'DM Sans',sans-serif; font-size:.62rem; padding:5px 10px;
-  border-radius:6px; cursor:pointer; white-space:nowrap; font-weight:500;
-  transition: all .15s; letter-spacing:.03em;
-}
-.preset:hover { border-color:var(--gold-l); color:var(--gold-deep); }
-.preset.active { background:var(--gold-pale); border-color:var(--gold); color:var(--gold-deep); font-weight:600; }
-
-.apply-btn {
-  background: var(--gold-grad); border:none; color:#fff;
-  font-family:'DM Sans',sans-serif; font-size:.62rem; font-weight:600;
-  padding:5px 12px; border-radius:6px; cursor:pointer; white-space:nowrap;
-  letter-spacing:.04em; flex-shrink:0; transition: opacity .15s;
-}
-.apply-btn:hover { opacity:.85; }
-
-/* NAV TABS */
-.nav-tabs {
-  background:var(--white); border-bottom:1px solid var(--border);
-  display:flex; overflow-x:auto; scrollbar-width:none;
-}
-.nav-tabs::-webkit-scrollbar{display:none}
-
-.tab {
-  flex:1; min-width:64px; padding:10px 4px; text-align:center;
-  font-size:.6rem; font-weight:600; color:var(--g4); cursor:pointer;
-  border-bottom:2px solid transparent; letter-spacing:.05em; text-transform:uppercase;
-  transition: all .15s; white-space:nowrap;
-}
-.tab.active { color:var(--gold); border-bottom-color:var(--gold); }
-
-/* ── PAGES ─────────────────────────────────── */
-.page { display:none; padding-bottom:24px; background:var(--white); }
-.page.active { display:block; }
-
-/* ── SECTION TITLE ─────────────────────────── */
-.sec {
-  padding:20px 16px 12px;
-  display:flex; align-items:center; gap:10px;
-}
-.sec-ico {
-  width:26px; height:26px; border-radius:6px;
-  background:var(--gold-pale); display:flex; align-items:center; justify-content:center;
-  font-size:.8rem; flex-shrink:0;
-}
-.sec-title {
-  font-family:'Jost',sans-serif; font-weight:700; font-size:1rem; color:var(--g1);
-}
-.sec-sub {
-  margin-left:auto; font-size:.58rem; color:var(--g4); text-transform:uppercase; letter-spacing:.07em;
-}
-
-/* ── SUMMARY STRIP ──────────────────────────── */
-.strip {
-  display:grid; grid-template-columns:repeat(4,1fr);
-  background:var(--g1); gap:0;
-}
-.strip-item {
-  padding:14px 8px; text-align:center;
-  border-right:1px solid rgba(255,255,255,.08);
-}
-.strip-item:last-child{border-right:none}
-.strip-val {
-  font-family:'Jost',sans-serif; font-weight:700; font-size:1.3rem;
-  color:var(--gold-l); line-height:1;
-}
-.strip-lbl {
-  font-size:.52rem; color:var(--g4); text-transform:uppercase; letter-spacing:.07em; margin-top:3px;
-}
-
-/* ── KPI SCROLL ─────────────────────────────── */
-.kpi-row {
-  display:flex; gap:10px; padding:0 16px 2px;
-  overflow-x:auto; scrollbar-width:none;
-}
-.kpi-row::-webkit-scrollbar{display:none}
-
-.kpi {
-  background:var(--white); border:1px solid var(--border); border-radius:var(--r);
-  padding:14px 14px 12px; min-width:120px; flex-shrink:0; box-shadow:var(--sh);
-  position:relative; overflow:hidden;
-}
-.kpi::after {
-  content:''; position:absolute; bottom:0; left:0; right:0; height:3px;
-}
-.kpi.g::after  { background:var(--gold-grad); }
-.kpi.gn::after { background:var(--green); }
-.kpi.rd::after { background:var(--red); }
-.kpi.gy::after { background:var(--g3); }
-.kpi.bl::after { background:var(--blue); }
-
-.kpi-lbl { font-size:.57rem; color:var(--g4); text-transform:uppercase; letter-spacing:.09em; margin-bottom:7px; font-weight:500; }
-.kpi-val { font-family:'Jost',sans-serif; font-weight:700; font-size:1.85rem; line-height:1; color:var(--g1); margin-bottom:3px; }
-.kpi.g  .kpi-val { color:var(--gold-deep); }
-.kpi.gn .kpi-val { color:var(--green); }
-.kpi.rd .kpi-val { color:var(--red); }
-.kpi-sub { font-size:.58rem; color:var(--g4); }
-
-/* ── CHART CARD ─────────────────────────────── */
-.cc {
-  background:var(--white); border:1px solid var(--border); border-radius:var(--r);
-  margin:0 16px 12px; padding:16px; box-shadow:var(--sh);
-}
-.cc h3 { font-family:'Jost',sans-serif; font-weight:700; font-size:.95rem; color:var(--g1); margin-bottom:3px; }
-.cc-sub { font-size:.58rem; color:var(--g4); text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px; }
-canvas { max-width:100%; }
-
-/* ── CLOSER CARDS ───────────────────────────── */
-.closer-list { padding:0 16px; display:flex; flex-direction:column; gap:10px; }
-
-.ccard {
-  background:var(--white); border:1px solid var(--border); border-radius:var(--r2);
-  box-shadow:var(--sh); overflow:hidden;
-}
-.ccard-head {
-  display:flex; align-items:center; gap:12px; padding:14px 14px;
-  cursor:pointer; user-select:none;
-}
-.cav {
-  width:38px; height:38px; border-radius:50%; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  font-family:'Jost',sans-serif; font-weight:700; font-size:1.05rem;
-}
-.cav-I { background:var(--gold-pale); color:var(--gold-deep); }
-.cav-K { background:var(--green-p); color:var(--green); }
-.cav-S { background:var(--blue-p); color:var(--blue); }
-.cav-G { background:#f2eef8; color:#5a4a8a; }
-
-.cname { font-family:'Jost',sans-serif; font-weight:600; font-size:1rem; color:var(--g1); flex:1; }
-.cbadge {
-  font-size:.56rem; font-weight:600; padding:3px 8px; border-radius:20px;
-  letter-spacing:.05em; text-transform:uppercase;
-}
-.b-gold { background:var(--gold-pale); color:var(--gold-deep); }
-.b-red  { background:var(--red-p); color:var(--red); }
-.b-grey { background:var(--bg2); color:var(--g3); }
-.b-blue { background:var(--blue-p); color:var(--blue); }
-
-.chevron { font-size:.65rem; color:var(--g4); margin-left:4px; transition:transform .22s; }
-.ccard.open .chevron { transform:rotate(180deg); }
-
-.cstats {
-  display:grid; grid-template-columns:repeat(3,1fr);
-  border-top:1px solid var(--border); background:var(--bg);
-}
-.cs { padding:10px 8px; text-align:center; border-right:1px solid var(--border); }
-.cs:last-child{border-right:none}
-.cs-val { font-family:'Jost',sans-serif; font-weight:700; font-size:1.25rem; color:var(--g1); line-height:1; }
-.cs-lbl { font-size:.54rem; color:var(--g4); text-transform:uppercase; letter-spacing:.06em; margin-top:3px; }
-
-.cdetail { display:none; }
-.ccard.open .cdetail { display:block; }
-
-.rate-block { padding:12px 14px; border-top:1px solid var(--border); }
-.rate-row-item { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.rate-row-item:last-child{margin-bottom:0}
-.rate-name { font-size:.6rem; color:var(--g3); width:72px; flex-shrink:0; }
-.rate-track { flex:1; height:5px; background:var(--bg2); border-radius:3px; overflow:hidden; }
-.rate-fill  { height:100%; border-radius:3px; }
-.rate-pct  { font-size:.63rem; font-weight:600; color:var(--g2); width:38px; text-align:right; flex-shrink:0; }
-
-.wtable-wrap { padding:0 14px 14px; }
-.wtable { width:100%; border-collapse:collapse; font-size:.64rem; }
-.wtable th { padding:8px 8px; text-align:right; font-size:.55rem; color:var(--g4); text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border); background:var(--white); }
-.wtable th:first-child{text-align:left}
-.wtable td { padding:9px 8px; text-align:right; border-bottom:1px solid var(--border); color:var(--g3); }
-.wtable td:first-child{text-align:left;color:var(--g2)}
-.wtable tr:last-child td { border-bottom:none; font-weight:600; color:var(--g1); background:var(--bg); }
-.cash { color:var(--green)!important; font-weight:600!important; font-family:'Jost',sans-serif; font-size:.82rem!important; }
-
-/* ── ALERT BOXES ────────────────────────────── */
-.alert {
-  margin:0 14px 12px; padding:11px 13px;
-  border-left:3px solid; border-radius:0 var(--r) var(--r) 0;
-  font-size:.68rem; line-height:1.5;
-}
-.alert.warn  { border-color:var(--red);  background:var(--red-p);   color:var(--red); }
-.alert.info  { border-color:var(--gold); background:var(--gold-pale); color:var(--gold-deep); }
-.alert.ok    { border-color:var(--green); background:var(--green-p); color:var(--green); }
-.alert.gy    { border-color:var(--g3);   background:var(--bg);      color:var(--g2); }
-.alert-title { font-size:.57rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; opacity:.7; }
-
-/* ── CONFIRMER ──────────────────────────────── */
-.conf-header {
-  background:var(--g1); margin:0 16px 12px; border-radius:var(--r2);
-  padding:16px; display:flex; align-items:center; gap:12px;
-}
-.conf-av {
-  width:42px; height:42px; border-radius:50%; background:var(--gold-grad);
-  display:flex; align-items:center; justify-content:center;
-  font-family:'Jost',sans-serif; font-weight:700; font-size:1.15rem; color:#fff; flex-shrink:0;
-}
-.conf-name { font-family:'Jost',sans-serif; font-weight:600; font-size:1.05rem; color:#fff; }
-.conf-role { font-size:.58rem; color:var(--g4); text-transform:uppercase; letter-spacing:.07em; }
-.conf-rate { margin-left:auto; text-align:right; }
-.conf-rate-val { font-family:'Jost',sans-serif; font-weight:700; font-size:1.6rem; color:var(--gold-l); line-height:1; }
-.conf-rate-lbl { font-size:.54rem; color:var(--g4); }
-
-.conf-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:0 16px 12px; }
-.conf-stat { background:var(--white); border:1px solid var(--border); border-radius:var(--r); padding:12px; text-align:center; box-shadow:var(--sh); }
-.conf-stat-val { font-family:'Jost',sans-serif; font-weight:700; font-size:1.5rem; line-height:1; margin-bottom:3px; }
-.conf-stat-lbl { font-size:.56rem; color:var(--g4); text-transform:uppercase; letter-spacing:.06em; }
-
-.pipe-bar { display:flex; height:22px; border-radius:var(--r); overflow:hidden; gap:2px; margin:0 16px 14px; }
-.pipe-seg { height:100%; display:flex; align-items:center; justify-content:center; font-size:.56rem; font-weight:600; letter-spacing:.03em; }
-
-/* ── VENTAS TABLE ───────────────────────────── */
-.vtable-wrap {
-  margin:0 16px 12px; border:1px solid var(--border); border-radius:var(--r); overflow:hidden; box-shadow:var(--sh);
-}
-.vrow { display:flex; gap:4px; padding:10px 14px; border-bottom:1px solid var(--border); align-items:center; }
-.vrow:last-child{border-bottom:none}
-.vrow.hdr { background:var(--bg); border-bottom:1px solid var(--border2); }
-.vcol { flex:1; font-size:.62rem; min-width:0; }
-.vlbl { font-size:.56rem; color:var(--g4); text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
-.vname { font-weight:500; color:var(--g1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.vclose { font-size:.58rem; color:var(--g4); }
-.vmonto { text-align:right; font-weight:600; font-family:'Jost',sans-serif; font-size:.85rem; color:var(--g1); }
-.vcobrado { text-align:right; color:var(--green); font-weight:600; font-size:.75rem; }
-.vpdte    { text-align:right; font-weight:600; font-size:.75rem; }
-
-/* ── FORECAST ───────────────────────────────── */
-.fc-list { padding:0 16px; }
-.fc-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
-.fc-row:last-child{border-bottom:none}
-.fc-week { font-size:.58rem; color:var(--g4); width:88px; flex-shrink:0; }
-.fc-track { flex:1; height:8px; background:var(--bg2); border-radius:4px; overflow:hidden; }
-.fc-fill  { height:100%; border-radius:4px; background:var(--gold-grad); }
-.fc-amt   { width:64px; text-align:right; font-family:'Jost',sans-serif; font-weight:700; font-size:.88rem; color:var(--gold-deep); flex-shrink:0; }
-
-/* ── INSIGHTS ───────────────────────────────── */
-.insight-list { padding:0 16px; display:flex; flex-direction:column; gap:10px; }
-.insight {
-  background:var(--white); border:1px solid var(--border); border-radius:var(--r);
-  padding:14px; box-shadow:var(--sh); display:flex; gap:12px;
-}
-.ins-ico { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.9rem; flex-shrink:0; }
-.ins-title { font-size:.58rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px; }
-.ins-text  { font-size:.68rem; line-height:1.55; color:var(--g2); }
-
-/* ── DIVIDER ────────────────────────────────── */
-.divider { height:1px; background:var(--border); margin:20px 16px 0; }
-
-/* ── ANIMATIONS ─────────────────────────────── */
-@keyframes up { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-.kpi,.ccard,.cc,.vtable-wrap { animation:up .35s ease both; }
-.kpi:nth-child(1){animation-delay:.04s} .kpi:nth-child(2){animation-delay:.08s}
-.kpi:nth-child(3){animation-delay:.12s} .kpi:nth-child(4){animation-delay:.16s}
-.kpi:nth-child(5){animation-delay:.20s} .kpi:nth-child(6){animation-delay:.24s}
-.ccard:nth-child(1){animation-delay:.06s} .ccard:nth-child(2){animation-delay:.12s}
-.ccard:nth-child(3){animation-delay:.18s} .ccard:nth-child(4){animation-delay:.24s}
-
-/* ── NO DATA STATE ──────────────────────────── */
-.no-data {
-  text-align:center; padding:40px 20px; color:var(--g4);
-  font-size:.75rem; line-height:1.6;
-}
-.no-data span { display:block; font-size:1.8rem; margin-bottom:8px; }
-</style>
-</head>
-<body>
-
-<!-- HEADER -->
-<div id="loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;background:#fff;position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;">
-  <div style="width:32px;height:32px;border:3px solid #e2ddd4;border-top-color:#a8832a;border-radius:50%;animation:spin .8s linear infinite;"></div>
-  <div style="font-family:'DM Sans',sans-serif;font-size:.72rem;color:#9a978f;letter-spacing:.06em;">Cargando datos...</div>
-</div>
-<div id="error-banner" style="display:none;background:#f5e8e4;border-bottom:2px solid #944030;padding:10px 16px;display:flex;gap:10px;align-items:center;">
-  <span id="error-msg" style="font-size:.7rem;color:#944030;flex:1;"></span>
-  <button onclick="loadData()" style="background:#944030;color:#fff;border:none;padding:5px 12px;font-size:.65rem;border-radius:4px;cursor:pointer;">Reintentar</button>
-</div>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-<div class="header">
-  <div class="header-top">
-    <div class="logo">CONVIERTE <span>OPS</span></div>
-    <div style="text-align:right"><span class="live">EN VIVO</span><div id="last-updated" style="font-size:.52rem;color:var(--g4);margin-top:2px;"></div></div>
-  </div>
-
-  <!-- DATE FILTER -->
-  <div class="date-bar">
-    <span class="date-label">Período:</span>
-    <input type="date" id="date-from" class="date-input" value="">
-    <span class="date-sep">→</span>
-    <input type="date" id="date-to"   class="date-input" value="">
-    <div class="preset-btns" id="month-btns">
-      <button class="preset" onclick="setPreset('all')">Todo</button>
-      <button class="preset" onclick="setPreset('last7')">7d</button>
-    </div>
-    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" onclick="loadData()">↻</button>
-  </div>
-
-  <!-- NAV TABS -->
-  <div class="nav-tabs">
-    <div class="tab active" onclick="showPage('general',this)">General</div>
-    <div class="tab" onclick="showPage('closers',this)">Closers</div>
-    <div class="tab" onclick="showPage('confirmer',this)">Confirmer</div>
-    <div class="tab" onclick="showPage('ventas',this)">Ventas</div>
-    <div class="tab" onclick="showPage('insights',this)">Insights</div>
-  </div>
-</div>
-
-<!-- SUMMARY STRIP -->
-<div class="strip" id="strip">
-  <div class="strip-item"><div class="strip-val" id="s-cash">—</div><div class="strip-lbl">Cobrado</div></div>
-  <div class="strip-item"><div class="strip-val" id="s-ventas">—</div><div class="strip-lbl">Ventas</div></div>
-  <div class="strip-item"><div class="strip-val" id="s-close">—</div><div class="strip-lbl">Close Rate</div></div>
-  <div class="strip-item"><div class="strip-val" id="s-show">—</div><div class="strip-lbl">Show Rate</div></div>
-</div>
-
-<!-- ═══════════════ PAGE: GENERAL ═══════════════ -->
-<div id="page-general" class="page active">
-  <div class="sec">
-    <div class="sec-ico">📊</div>
-    <span class="sec-title">KPIs Globales</span>
-    <span class="sec-sub" id="range-label">Feb–Mar 2026</span>
-  </div>
-  <div class="kpi-row" id="kpi-row">
-    <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Ventas #</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">pipeline</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div></div>
-    <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Ticket Prom.</div><div class="kpi-val" id="k-ticket">—</div><div class="kpi-sub">USD / venta</div></div>
-  </div>
-
-  <div class="divider"></div>
-  <div class="sec"><div class="sec-ico">📈</div><span class="sec-title">Cash Semanal</span></div>
-  <div class="cc"><h3>Evolución de Cobros</h3><div class="cc-sub">USD · Semana a semana</div><canvas id="c-cash" height="180"></canvas></div>
-  <div class="cc"><h3>Embudo por Closer</h3><div class="cc-sub">Agendas → Asistencias → Cierres</div><canvas id="c-funnel" height="180"></canvas></div>
-</div>
-
-<!-- ═══════════════ PAGE: CLOSERS ═══════════════ -->
-<div id="page-closers" class="page">
-  <div class="sec"><div class="sec-ico">👤</div><span class="sec-title">Performance Closers</span></div>
-  <div class="closer-list" id="closer-list">
-    <!-- rendered by JS -->
-  </div>
-  <div class="divider"></div>
-  <div style="height:12px"></div>
-  <div class="cc"><h3>Show Rate vs Close Rate</h3><div class="cc-sub">% comparado por closer</div><canvas id="c-rates" height="200"></canvas></div>
-</div>
-
-<!-- ═══════════════ PAGE: CONFIRMER ═══════════════ -->
-<div id="page-confirmer" class="page">
-  <div class="sec"><div class="sec-ico">📞</div><span class="sec-title">Call Confirmers</span></div>
-
-  <div id="conf-header-wrap"><!-- JS --></div>
-  <div id="conf-stats-wrap" class="conf-stats"><!-- JS --></div>
-  <div class="pipe-bar" id="conf-pipe"><!-- JS --></div>
-
-  <div class="cc"><h3>Resultados por Semana</h3><div class="cc-sub">Confirmados, Cancelados, Descalificados</div><canvas id="c-conf-week" height="200"></canvas></div>
-  <div class="cc"><h3>Leads por Closer</h3><div class="cc-sub">Confirmados asignados</div><canvas id="c-conf-closer" height="200"></canvas></div>
-</div>
-
-<!-- ═══════════════ PAGE: VENTAS ═══════════════ -->
-<div id="page-ventas" class="page">
-  <div class="sec"><div class="sec-ico">💰</div><span class="sec-title">Pipeline de Ventas</span></div>
-  <div class="kpi-row" id="ventas-kpis"><!-- JS --></div>
-  <div style="height:14px"></div>
-  <div id="vtable-wrap"><!-- JS --></div>
-
-  <div class="divider"></div>
-  <div class="sec"><div class="sec-ico">📅</div><span class="sec-title">Forecast Semanal</span></div>
-  <div class="fc-list" id="fc-list"><!-- JS --></div>
-</div>
-
-<!-- ═══════════════ PAGE: INSIGHTS ═══════════════ -->
-<div id="page-insights" class="page">
-  <div class="sec"><div class="sec-ico">💡</div><span class="sec-title">Insights Estratégicos</span></div>
-  <div class="insight-list" id="insight-list"><!-- JS --></div>
-</div>
-
-<script>
-// ═══════════════════════════════════════════════
-//  RAW DATA — loaded live from Google Sheets
-// ═══════════════════════════════════════════════
-let RAW_MD = [];
-let RAW_CC = [];
-let RAW_V  = [];
-let RAW_C  = [];
-let RAW_CL = [];
-let RAW_PC = [];
-
-// ═══════════════════════════════════════════════
-//  FILTERS
-// ═══════════════════════════════════════════════
-let dateFrom='',dateTo='';
-
-function buildMonthPresets() {
-  const MNAMES={'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
-  const months=[...new Set([...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).map(d=>d.slice(0,7)))].sort();
-  const wrap=document.getElementById('month-btns');
-  if(!wrap) return;
-  const fixed=wrap.innerHTML;
-  wrap.innerHTML=months.map(m=>'<button class="preset" onclick="setPreset(\'m:'+m+'\')">'+MNAMES[m.slice(5,7)]+'</button>').join('')+fixed;
-}
-
-function setPreset(p) {
-  document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
-  if(event&&event.target) event.target.classList.add('active');
-  const all=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
-  const minD=all[0]||'', maxD=all[all.length-1]||'';
-  if(p.startsWith('m:')) {
-    const ym=p.slice(2); const[y,m]=ym.split('-').map(Number);
-    dateFrom=ym+'-01'; dateTo=new Date(y,m,0).toISOString().slice(0,10);
-  } else if(p==='all') {
-    dateFrom=minD; dateTo=maxD;
-  } else if(p==='last7') {
-    const d=new Date(maxD); d.setDate(d.getDate()-6);
-    dateFrom=d.toISOString().slice(0,10); dateTo=maxD;
-  }
-  document.getElementById('date-from').value=dateFrom;
-  document.getElementById('date-to').value=dateTo;
-  applyFilter();
-}
-
-function applyFilter() {
-  dateFrom = document.getElementById('date-from').value;
-  dateTo   = document.getElementById('date-to').value;
-  renderAll();
-}
-
-function inRange(d) { if(!d) return false; if(!dateFrom||!dateTo) return true; return d>=dateFrom&&d<=dateTo; }
-
-function weekOf(dateStr) {
-  const d = new Date(dateStr);
-  const day = d.getDay(); // 0=Sun
-  const diff = d.getDate() - day + (day===0 ? -6 : 1);
-  const mon = new Date(d.setDate(diff));
-  return mon.toISOString().slice(0,10);
-}
-
-function fmtDate(d) { return d.slice(5).replace('-','/'); }
-function fmtMoney(n) {
-  if (n >= 1000) return '$' + (n/1000).toFixed(1).replace('.0','') + 'K';
-  return '$' + Math.round(n);
-}
-function pct(a,b) { return b ? Math.round(a/b*100) : 0; }
-
-// ═══════════════════════════════════════════════
-//  CHART INSTANCES
-// ═══════════════════════════════════════════════
-const charts = {};
-function destroyChart(id) { if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
-
-Chart.defaults.color = '#9a978f';
-Chart.defaults.borderColor = '#e2ddd4';
-Chart.defaults.font.family = "'DM Sans',sans-serif";
-Chart.defaults.font.size = 10;
-
-const GOLD='#a8832a', GOLD_L='#c9a84c', GOLD_P='rgba(168,131,42,.12)';
-const GREEN='#3d6b50', GREEN_P='rgba(61,107,80,.15)';
-const RED='#944030',   RED_P='rgba(148,64,48,.15)';
-const BLUE='#2a527a',  BLUE_P='rgba(42,82,122,.12)';
-const GY='#9a978f',    GY_P='rgba(154,151,143,.12)';
-
-// ═══════════════════════════════════════════════
-//  COMPUTE STATS
-// ═══════════════════════════════════════════════
-function computeStats() {
-  const md = RAW_MD.filter(r => inRange(r.Fecha));
-  const cc = RAW_CC.filter(r => inRange(r.Fecha));
-  const v  = RAW_V.filter(r  => inRange(r['Fecha Cierre']));
-  const co = RAW_C.filter(r  => inRange(r.Fecha));
-
-  // Asistencias reales desde CLOSER_LOG
-  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
-  const clFilt = RAW_CL.filter(r=>inRange(r.Fecha));
-  const totAg = md.reduce((s,r)=>s+r.Agendas,0);
-  const totAs = clFilt.length
-    ? clFilt.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length
-    : md.reduce((s,r)=>s+r.Asistencias,0);
-  const totCi = md.reduce((s,r)=>s+r.Cierres,0);
-  const totCash = co.reduce((s,r)=>s+r.Monto,0);
-  const totVenta = v.reduce((s,r)=>s+r.Venta,0);
-  const totCobrado = v.reduce((s,r)=>s+r.Cobrado,0);
-  const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
-
-  // Per closer — asistencias desde CLOSER_LOG
-  const allCN=[...new Set([...md.map(r=>r.Closer),...clFilt.map(r=>r.Closer)])].filter(Boolean);
-  const ORDER=['Ignacio','Sebastian','Karim','Guillermo'];
-  const closers=ORDER.filter(c=>allCN.includes(c)).concat(allCN.filter(c=>!ORDER.includes(c)));
-  const byCloser={};
-  closers.forEach(c=>{
-    const rows  =md.filter(r=>r.Closer===c);
-    const coRows=co.filter(r=>r.Closer===c);
-    const vRows =v.filter(r=>r.Closer===c);
-    const clRows=clFilt.filter(r=>r.Closer===c);
-    byCloser[c]={
-      ag:  rows.reduce((s,r)=>s+r.Agendas,0),
-      as:  clRows.length ? clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length : rows.reduce((s,r)=>s+r.Asistencias,0),
-      ci:  rows.reduce((s,r)=>s+r.Cierres,0),
-      se:  rows.reduce((s,r)=>s+r.Seguimientos,0),
-      cash:coRows.reduce((s,r)=>s+r.Monto,0),
-      ventas:vRows.length,
-    };
-  });
-
-  // Weekly cash
-  const weekCash = {};
-  co.forEach(r => { const w=weekOf(r.Fecha); weekCash[w]=(weekCash[w]||0)+r.Monto; });
-
-  // Weekly confirmer
-  const weekConf = {};
-  cc.forEach(r => {
-    const w=weekOf(r.Fecha);
-    if(!weekConf[w]) weekConf[w]={conf:0,canc:0,desc:0};
-    if(r.Estado==='Confirmado') weekConf[w].conf++;
-    else if(r.Estado==='Cancelado') weekConf[w].canc++;
-    else if(r.Estado==='Descalificado') weekConf[w].desc++;
-  });
-
-  // Confirmer totals
-  const confConf = cc.filter(r=>r.Estado==='Confirmado').length;
-  const confCanc = cc.filter(r=>r.Estado==='Cancelado').length;
-  const confDesc = cc.filter(r=>r.Estado==='Descalificado').length;
-  const confTotal = confConf+confCanc+confDesc;
-
-  // Conf by closer
-  const confByCloser = {};
-  cc.filter(r=>r.Estado==='Confirmado').forEach(r=>{
-    confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
-  });
-
-  const tipoB={};
-  ['Nuevo','CxC','Renovación','Upsell'].forEach(t=>{tipoB[t]=co.filter(r=>r.Tipo===t).reduce((s,r)=>s+r.Monto,0);});
-  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers,tipoB};
-}
-
-// ═══════════════════════════════════════════════
-//  RENDER ALL
-// ═══════════════════════════════════════════════
-function renderAll() {
-  const s = computeStats();
-  renderStrip(s);
-  renderKPIs(s);
-  renderRangeLabel();
-  renderCashChart(s);
-  renderFunnelChart(s);
-  renderClosers(s);
-  renderRatesChart(s);
-  renderConfirmer(s);
-  renderInsights(s);
-  if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
-}
-
-function renderRangeLabel() {
-  const f = dateFrom.slice(5).replace('-','/');
-  const t = dateTo.slice(5).replace('-','/');
-  document.getElementById('range-label').textContent = f + ' – ' + t;
-}
-
-function renderStrip(s) {
-  const showRate = pct(s.totAs, s.totAg);
-  const closeRate = pct(s.totCi, s.totAs);
-  document.getElementById('s-cash').textContent    = fmtMoney(s.totCash);
-  document.getElementById('s-ventas').textContent  = s.v.length;
-  document.getElementById('s-close').textContent   = closeRate+'%';
-  document.getElementById('s-show').textContent    = showRate+'%';
-}
-
-function renderKPIs(s) {
-  const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
-  const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
-  document.getElementById('k-cash').textContent         = fmtMoney(s.totCash);
-  document.getElementById('k-venta-total').textContent     = fmtMoney(s.totVenta);
-  document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
-  document.getElementById('k-ventas').textContent  = s.v.length;
-  document.getElementById('k-ventas-sub').textContent = fmtMoney(s.totVenta)+' pipeline';
-  document.getElementById('k-agendas').textContent = s.totAg;
-  document.getElementById('k-show').textContent    = sr+'%';
-  document.getElementById('k-show-sub').textContent = s.totAs+'/'+s.totAg+' asist.';
-  document.getElementById('k-close').textContent   = cr+'%';
-  document.getElementById('k-close-sub').textContent = s.totCi+'/'+s.totAs+' cierres';
-  document.getElementById('k-ticket').textContent  = fmtMoney(ticket);
-}
-
-function renderCashChart(s) {
-  destroyChart('cash');
-  const weeks = Object.keys(s.weekCash).sort();
-  const vals  = weeks.map(w=>Math.round(s.weekCash[w]));
-  const ctx = document.getElementById('c-cash').getContext('2d');
-  charts['cash'] = new Chart(ctx,{
-    type:'line',
-    data:{ labels:weeks.map(fmtDate), datasets:[{
-      label:'USD',data:vals,borderColor:GOLD,backgroundColor:GOLD_P,
-      borderWidth:2.5,pointBackgroundColor:GOLD,pointBorderColor:'#fff',
-      pointBorderWidth:2,pointRadius:5,fill:true,tension:.35
-    }]},
-    options:{responsive:true,plugins:{legend:{display:false}},scales:{
-      y:{grid:{color:'#f0ece4'},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}},
-      x:{grid:{color:'#f0ece4'}}
-    }}
-  });
-}
-
-function renderFunnelChart(s) {
-  destroyChart('funnel');
-  const cls = Object.keys(s.byCloser).filter(c=>s.byCloser[c].ag+s.byCloser[c].as>0);
-  const ctx = document.getElementById('c-funnel').getContext('2d');
-  charts['funnel'] = new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:cls,
-      datasets:[
-        {label:'Agendas',   data:cls.map(c=>s.byCloser[c].ag), backgroundColor:GY_P,  borderColor:GY,    borderWidth:1},
-        {label:'Asistencias',data:cls.map(c=>s.byCloser[c].as), backgroundColor:GOLD_P,borderColor:GOLD,  borderWidth:1},
-        {label:'Cierres',   data:cls.map(c=>s.byCloser[c].ci), backgroundColor:GREEN_P,borderColor:GREEN, borderWidth:1},
-      ]
-    },
-    options:{responsive:true,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:10,color:'#68655e'}}},
-      scales:{y:{grid:{color:'#f0ece4'}},x:{grid:{color:'#f0ece4'}}}
-    }
-  });
-}
-
-function renderClosers(s) {
-  const badges = {
-    Ignacio:{cls:'b-gold',txt:'Líder'},
-    Sebastian:{cls:'b-red',txt:'Sin Cierres'},
-    Karim:{cls:'b-grey',txt:'En Desarrollo'},
-    Guillermo:{cls:'b-grey',txt:'Baja Actividad'}
-  };
-  const cavs = {Ignacio:'cav-I',Sebastian:'cav-S',Karim:'cav-K',Guillermo:'cav-G'};
-
-  let html = '';
-  s.closers.forEach(c => {
-    const d = s.byCloser[c];
-    if(d.ag+d.as+d.ci===0) return;
-    const sr = pct(d.as,d.ag), cr = pct(d.ci,d.as);
-    const b = badges[c]||{cls:'b-grey',txt:c};
-
-    // Weekly rows
-    const weekRows = {};
-    s.md.filter(r=>r.Closer===c).forEach(r=>{
-      const w=weekOf(r.Fecha);
-      if(!weekRows[w]) weekRows[w]={ag:0,as:0,ci:0,cash:0};
-      weekRows[w].ag+=r.Agendas; weekRows[w].as+=r.Asistencias; weekRows[w].ci+=r.Cierres;
-    });
-    s.co.filter(r=>r.Closer===c).forEach(r=>{
-      const w=weekOf(r.Fecha);
-      if(!weekRows[w]) weekRows[w]={ag:0,as:0,ci:0,cash:0};
-      weekRows[w].cash+=r.Monto;
-    });
-    const wkeys = Object.keys(weekRows).sort();
-    const whtml = wkeys.map(w=>`
-      <tr>
-        <td>${fmtDate(w)}</td>
-        <td>${weekRows[w].ag}</td><td>${weekRows[w].as}</td><td>${weekRows[w].ci}</td>
-        <td class="cash">${weekRows[w].cash>0?fmtMoney(weekRows[w].cash):'—'}</td>
-      </tr>`).join('');
-    const totCash  = s.co.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Monto,0);
-    const totVenta = s.v.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Venta,0);
-
-    const sebAlert = c==='Sebastian' ? `
-      <div class="alert warn" style="margin:0 14px 12px">
-        <div class="alert-title">⚠ Alerta Conversión</div>
-        Show rate ${sr}% pero 0 cierres. El cuello de botella está en la conversión, no en la convocatoria.
-      </div>` : '';
-    const guillAlert = c==='Guillermo' && d.ag<6 ? `
-      <div class="alert gy" style="margin:0 14px 12px">
-        <div class="alert-title">📌 Nota</div>
-        Actividad muy baja (${d.ag} agendas). Necesita más volumen para evaluar su tasa de conversión real.
-      </div>` : '';
-
-    html += `
-    <div class="ccard" id="cc-${c}">
-      <div class="ccard-head" onclick="toggleCloser('${c}')">
-        <div class="cav ${cavs[c]}">${c[0]}</div>
-        <div class="cname">${c}</div>
-        <span class="cbadge ${b.cls}">${b.txt}</span>
-        <span class="chevron">▼</span>
-      </div>
-      <div class="cstats" style="grid-template-columns:repeat(5,1fr)">
-        <div class="cs"><div class="cs-val">${d.ag}</div><div class="cs-lbl">Agendas</div></div>
-        <div class="cs"><div class="cs-val">${d.as}</div><div class="cs-lbl">Asistencias</div></div>
-        <div class="cs"><div class="cs-val">${d.ci}</div><div class="cs-lbl">Cierres</div></div>
-        <div class="cs"><div class="cs-val" style="color:var(--green)">${fmtMoney(totVenta)}</div><div class="cs-lbl">Venta Total</div></div>
-        <div class="cs"><div class="cs-val" style="color:${totCash>0?'var(--gold-deep)':'var(--g3)'}">${totCash>0?fmtMoney(totCash):'$0'}</div><div class="cs-lbl">Cash</div></div>
-      </div>
-      <div class="cdetail">
-        ${sebAlert}${guillAlert}
-        <div class="rate-block">
-          <div class="rate-row-item">
-            <span class="rate-name">Show Rate</span>
-            <div class="rate-track"><div class="rate-fill" style="width:${sr}%;background:${GOLD}"></div></div>
-            <span class="rate-pct">${sr}%</span>
-          </div>
-          <div class="rate-row-item">
-            <span class="rate-name">Close Rate</span>
-            <div class="rate-track"><div class="rate-fill" style="width:${cr}%;background:${GREEN}"></div></div>
-            <span class="rate-pct">${cr}%</span>
-          </div>
-        </div>
-        <div class="wtable-wrap">
-          <table class="wtable">
-            <thead><tr><th>Semana</th><th>Ag.</th><th>As.</th><th>Ci.</th><th>Cash</th></tr></thead>
-            <tbody>
-              ${whtml}
-              <tr>
-                <td>TOTAL</td><td>${d.ag}</td><td>${d.as}</td><td>${d.ci}</td>
-                <td class="cash">${totCash>0?fmtMoney(totCash):'$0'}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
-  });
-  document.getElementById('closer-list').innerHTML = html || '<div class="no-data"><span>🔍</span>Sin datos en este período</div>';
-}
-
-function renderRatesChart(s) {
-  destroyChart('rates');
-  const cls = s.closers.filter(c=>s.byCloser[c].ag>0);
-  const ctx = document.getElementById('c-rates').getContext('2d');
-  charts['rates'] = new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:cls,
-      datasets:[
-        {label:'Show Rate %', data:cls.map(c=>pct(s.byCloser[c].as,s.byCloser[c].ag)), backgroundColor:GOLD_P, borderColor:GOLD, borderWidth:1.5},
-        {label:'Close Rate %',data:cls.map(c=>pct(s.byCloser[c].ci,s.byCloser[c].as)), backgroundColor:GREEN_P,borderColor:GREEN,borderWidth:1.5}
-      ]
-    },
-    options:{responsive:true,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:12,color:'#68655e'}}},
-      scales:{y:{grid:{color:'#f0ece4'},ticks:{callback:v=>v+'%'},max:110},x:{grid:{color:'#f0ece4'}}}
-    }
-  });
-}
-
-function renderConfirmer(s) {
-  const rate = pct(s.confConf,s.confTotal);
-  document.getElementById('conf-header-wrap').innerHTML = `
-    <div class="conf-header">
-      <div class="conf-av">C</div>
-      <div><div class="conf-name">Claudia</div><div class="conf-role">Call Confirmer</div></div>
-      <div class="conf-rate"><div class="conf-rate-val">${rate}%</div><div class="conf-rate-lbl">Tasa Conf.</div></div>
-    </div>`;
-
-  document.getElementById('conf-stats-wrap').innerHTML = `
-    <div class="conf-stat"><div class="conf-stat-val" style="color:var(--green)">${s.confConf}</div><div class="conf-stat-lbl">Confirmados</div></div>
-    <div class="conf-stat"><div class="conf-stat-val" style="color:var(--red)">${s.confCanc}</div><div class="conf-stat-lbl">Cancelados</div></div>
-    <div class="conf-stat"><div class="conf-stat-val" style="color:var(--g3)">${s.confDesc}</div><div class="conf-stat-lbl">Descalif.</div></div>`;
-
-  const confPct = s.confTotal ? Math.round(s.confConf/s.confTotal*100) : 0;
-  const cancPct = s.confTotal ? Math.round(s.confCanc/s.confTotal*100) : 0;
-  const descPct = Math.max(0,100-confPct-cancPct);
-  document.getElementById('conf-pipe').innerHTML = `
-    <div class="pipe-seg" style="width:${confPct}%;background:var(--green);color:#fff;">${confPct}% ✓</div>
-    <div class="pipe-seg" style="width:${cancPct}%;background:var(--red-p);color:var(--red);">${cancPct}% ✗</div>
-    ${descPct>0?`<div class="pipe-seg" style="width:${descPct}%;background:var(--bg2);color:var(--g4);">${descPct}%</div>`:''}`;
-
-  // Weekly chart
-  destroyChart('confWeek');
-  const weeks = Object.keys(s.weekConf).sort();
-  const ctx = document.getElementById('c-conf-week').getContext('2d');
-  charts['confWeek'] = new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:weeks.map(fmtDate),
-      datasets:[
-        {label:'Confirmados', data:weeks.map(w=>s.weekConf[w].conf), backgroundColor:GREEN_P, borderColor:GREEN, borderWidth:1},
-        {label:'Cancelados',  data:weeks.map(w=>s.weekConf[w].canc), backgroundColor:RED_P,   borderColor:RED,   borderWidth:1},
-        {label:'Descalif.',   data:weeks.map(w=>s.weekConf[w].desc), backgroundColor:GY_P,    borderColor:GY,    borderWidth:1},
-      ]
-    },
-    options:{responsive:true,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:10,color:'#68655e'}}},
-      scales:{y:{grid:{color:'#f0ece4'}},x:{grid:{color:'#f0ece4'}}}
-    }
-  });
-
-  // By closer donut
-  destroyChart('confCloser');
-  const ckeys = Object.keys(s.confByCloser);
-  const ctx2 = document.getElementById('c-conf-closer').getContext('2d');
-  charts['confCloser'] = new Chart(ctx2,{
-    type:'doughnut',
-    data:{
-      labels:ckeys,
-      datasets:[{
-        data:ckeys.map(k=>s.confByCloser[k]),
-        backgroundColor:[GOLD_P,BLUE_P,GREEN_P,GY_P],
-        borderColor:[GOLD,BLUE,GREEN,GY],
-        borderWidth:2
-      }]
-    },
-    options:{responsive:true,cutout:'58%',
-      plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:12,color:'#68655e'}}}
-    }
-  });
-}
-
-function renderVentas(s) {
-  const totV = s.totVenta, totC = s.totCobrado, totP = s.totPdte;
-  document.getElementById('ventas-kpis').innerHTML = `
-    <div class="kpi g"><div class="kpi-lbl">Total Ventas</div><div class="kpi-val">${fmtMoney(totV)}</div><div class="kpi-sub">${s.v.length} contratos</div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Cobrado</div><div class="kpi-val">${fmtMoney(totC)}</div><div class="kpi-sub">${pct(totC,totV)}% del total</div></div>
-    <div class="kpi rd"><div class="kpi-lbl">Pendiente</div><div class="kpi-val">${fmtMoney(totP)}</div><div class="kpi-sub">${pct(totP,totV)}% por cobrar</div></div>`;
-
-  if(s.v.length===0){
-    document.getElementById('vtable-wrap').innerHTML='<div class="no-data"><span>💰</span>Sin ventas en este período</div>';
-    document.getElementById('fc-list').innerHTML='';
-    return;
-  }
-
-  let rows = s.v.map(r=>`
-    <div class="vrow">
-      <div class="vcol" style="flex:2"><div class="vname">${r.Cliente}</div><div class="vclose">${r.Closer} · ${r.Plan}</div></div>
-      <div class="vcol vmonto">${fmtMoney(r.Venta)}</div>
-      <div class="vcol vcobrado">${fmtMoney(r.Cobrado)}</div>
-      <div class="vcol vpdte" style="color:${r.Pendiente>0?'var(--red)':'var(--g4)'}">${r.Pendiente>0?fmtMoney(r.Pendiente):'—'}</div>
-    </div>`).join('');
-
-  document.getElementById('vtable-wrap').innerHTML = `
-    <div class="vtable-wrap">
-      <div class="vrow hdr">
-        <div class="vcol vlbl" style="flex:2">Cliente</div>
-        <div class="vcol vlbl" style="text-align:right">Monto</div>
-        <div class="vcol vlbl" style="text-align:right">Cobrado</div>
-        <div class="vcol vlbl" style="text-align:right">Pdte.</div>
-      </div>${rows}
-    </div>`;
-
-  // Flujos proyectados
-  const hoy=new Date().toISOString().slice(0,10);
-  const pend=RAW_PC.filter(r=>(r.Estado||'').toLowerCase()!=='pagado').sort((a,b)=>a.FechaVenc.localeCompare(b.FechaVenc));
-  const fEl=document.getElementById('flujos-list');
-  if(fEl){
-    if(!pend.length){
-      fEl.innerHTML='<div style="font-size:.7rem;color:var(--g4);padding:12px 0;">Sin pagos pendientes</div>';
-    } else {
-      const maxF=Math.max(...pend.map(r=>r.Monto));
-      const totF=pend.reduce((s,r)=>s+r.Monto,0);
-      const totV=pend.filter(r=>r.FechaVenc<hoy).reduce((s,r)=>s+r.Monto,0);
-      function fCol(d){const df=Math.round((new Date(d)-new Date(hoy))/86400000);return df<0?'var(--red)':df<=7?'var(--gold)':'var(--green)';}
-      function fDia(d){const df=Math.round((new Date(d)-new Date(hoy))/86400000);return df===0?'Hoy':df>0?'en '+df+'d':Math.abs(df)+'d vencido';}
-      fEl.innerHTML=pend.map(r=>{
-        const col=fCol(r.FechaVenc),dia=fDia(r.FechaVenc),nom=(r.LeadMail||'').split('@')[0]||'—';
-        return '<div class="fc-row">'
-          +'<div style="width:82px;flex-shrink:0;"><div class="fc-week">'+fmtDate(r.FechaVenc)+'</div>'
-          +'<div style="font-size:.58rem;color:'+col+';font-weight:600;">'+dia+'</div></div>'
-          +'<div style="flex:1;min-width:0;"><div style="font-size:.62rem;color:var(--g2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.Closer+' · '+nom+'</div>'
-          +'<div class="fc-track" style="margin-top:4px;"><div class="fc-fill" style="width:'+Math.round(r.Monto/maxF*100)+'%;background:'+col+';opacity:.75;"></div></div></div>'
-          +'<div class="fc-amt" style="color:'+col+';">'+fmtMoney(r.Monto)+'</div></div>';
-      }).join('')
-      +'<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;">'
-      +'<span style="font-size:.58rem;color:var(--g3);font-weight:600;text-transform:uppercase;">'+pend.length+' pagos · '+fmtMoney(totV)+' vencidos</span>'
-      +'<span style="font-weight:700;color:var(--gold-deep);">'+fmtMoney(totF)+'</span></div>';
-    }
-  }
-  // Comisiones
-  const SIN=['Guillermo'];
-  const comC={};
-  s.co.forEach(r=>{if(SIN.includes(r.Closer))return;comC[r.Closer]=(comC[r.Closer]||0)+(r.ComCloser||0);});
-  const totConf=s.co.reduce((s,r)=>s+(r.ComConf||0),0);
-  const cCol={Ignacio:'var(--gold-deep)',Sebastian:'var(--blue)',Karim:'var(--green)'};
-  const comRows=Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const totComC=comRows.reduce((s,[,v])=>s+v,0);
-  const cEl=document.getElementById('comisiones-wrap');
-  if(cEl){
-    cEl.innerHTML=
-      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
-      +comRows.map(([c,v])=>
-        '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-        +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+(cCol[c]||'var(--g2)')+';">'+c[0]+'</div>'
-        +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>'
-        +'<div style="font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div></div>'
-      ).join('')
-      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
-      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
-      +'<span style="font-weight:700;color:var(--gold-deep);">'+fmtMoney(totComC)+'</span></div></div>'
-      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>'
-      +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-      +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);">C</div>'
-      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>'
-      +'<div style="font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
-      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
-      +'<span style="font-weight:700;color:var(--green);">'+fmtMoney(totConf)+'</span></div></div>';
-  }
-}
-
-function renderInsights(s) {
-  const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
-  const I = s.byCloser['Ignacio']||{};
-  const Se = s.byCloser['Sebastian']||{};
-  const Ka = s.byCloser['Karim']||{};
-  const cashShare = s.totCash>0 ? Math.round(I.cash/s.totCash*100) : 0;
-
-  const items = [];
-
-  if(I.ci>0) items.push({ico:'✅',bg:'var(--gold-pale)',tc:'var(--gold-deep)',title:'Fortaleza · Ignacio',
-    text:`Ignacio genera el <strong>${cashShare}%</strong> del revenue (${fmtMoney(I.cash)} de ${fmtMoney(s.totCash)} cobrados) con <strong>${I.ci}</strong> cierres en el período. Motor del equipo.`});
-
-  if(Se.as>3 && Se.ci===0) items.push({ico:'🚨',bg:'var(--red-p)',tc:'var(--red)',title:'Alerta · Sebastian',
-    text:`Show rate <strong>${pct(Se.as,Se.ag)}%</strong> con <strong>0 cierres</strong> en ${Se.as} asistencias. El problema está en la conversión, no en la convocatoria. Auditar pitch y manejo de objeciones.`});
-
-  if(s.totPdte>0) items.push({ico:'⚠️',bg:'var(--red-p)',tc:'var(--red)',title:'CxC Pendientes',
-    text:`<strong>${fmtMoney(s.totPdte)}</strong> en cuentas por cobrar (${pct(s.totPdte,s.totVenta)}% del revenue). Revisar plan de cuotas y vencimientos próximos.`});
-
-  const wks=Object.keys(s.weekCash).sort();
-  if(wks.length>1){
-    const lastW=wks[wks.length-1], prevW=wks[wks.length-2];
-    const diff=s.weekCash[lastW]-s.weekCash[prevW];
-    if(diff>0) items.push({ico:'📈',bg:'var(--gold-pale)',tc:'var(--gold-deep)',title:'Tendencia al Alza',
-      text:`La semana del <strong>${fmtDate(lastW)}</strong> es la mejor del período con <strong>${fmtMoney(s.weekCash[lastW])}</strong>. Incremento de ${fmtMoney(diff)} vs semana anterior.`});
-  }
-
-  if(s.confCanc>5) items.push({ico:'💡',bg:'var(--green-p)',tc:'var(--green)',title:'Oportunidad · Confirmer',
-    text:`Hay <strong>${s.confCanc} leads cancelados</strong> en el período seleccionado. Son prospectos que ya mostraron interés y son candidatos para reactivación.`});
-
-  if(Ka.as>0 && Ka.ci>=0) items.push({ico:'🔧',bg:'var(--blue-p)',tc:'var(--blue)',title:'Escalar Karim',
-    text:`Karim logró <strong>${pct(Ka.ci,Ka.as)}% close rate</strong> con ${Ka.as} asistencias. Aumentar volumen de agendas es la palanca principal para multiplicar resultados.`});
-
-  document.getElementById('insight-list').innerHTML = items.map(i=>`
-    <div class="insight">
-      <div class="ins-ico" style="background:${i.bg}">${i.ico}</div>
-      <div>
-        <div class="ins-title" style="color:${i.tc}">${i.title}</div>
-        <div class="ins-text">${i.text}</div>
-      </div>
-    </div>`).join('');
-}
-
-// ═══════════════════════════════════════════════
-//  INTERACTIONS
-// ═══════════════════════════════════════════════
-function showPage(id, el) {
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
-  el.classList.add('active');
-  window.scrollTo(0,0);
-  if(id==='ventas'&&RAW_C.length) { const s=computeStats(); renderVentas(s); }
-}
-
-function toggleCloser(name) {
-  document.getElementById('cc-'+name).classList.toggle('open');
-}
-
-// ═══════════════════════════════════════════════
-//  CSV PARSER
-// ═══════════════════════════════════════════════
-function parseCSV(text) {
-  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
-  function splitLine(line) {
-    const vals=[]; let cur='', inQ=false;
-    for(let i=0;i<line.length;i++) {
-      const ch=line[i];
-      if(ch==='"') { if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ; }
-      else if(ch===','&&!inQ) { vals.push(cur.trim()); cur=''; }
-      else cur+=ch;
-    }
-    vals.push(cur.trim());
-    return vals;
-  }
-  const headers=splitLine(lines[0]);
-  return lines.slice(1).filter(l=>l.trim()).map(line=>{
-    const vals=splitLine(line);
-    const obj={};
-    headers.forEach((h,i)=>{ obj[h]=(vals[i]||'').replace(/^"|"$/g,''); });
-    return obj;
-  });
-}
-
-function toDate(s) {
-  if(!s||s===''||s==='NaT') return null;
-  s=s.trim();
-  if(s.length>=10&&s[4]==='-') return s.slice(0,10);
-  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const[d,m,y]=s.split('/'); return y+'-'+m.padStart(2,'0')+'-'+d.padStart(2,'0');
-  }
-  return null;
-}
-function toN(v) { const n=parseFloat(String(v||0).replace(/,/g,'.')); return isNaN(n)?0:n; }
-
-// ═══════════════════════════════════════════════
-//  LIVE FETCH
-// ═══════════════════════════════════════════════
-async function loadData() {
-  document.getElementById('loader').style.display = 'flex';
-  document.getElementById('error-banner').style.display = 'none';
-  try {
-    const [r1,r2,r3,r4,r5] = await Promise.all([
-      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1996565453&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=355815377&single=true&output=csv'),
-      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=136016178&single=true&output=csv'),  fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1724312474&single=true&output=csv'), fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1428682471&single=true&output=csv')
-    ]);
-    const [t1,t2,t3,t4,t5] = await Promise.all([
-      r1.text(),r2.text(),r3.text(),r4.text(),r5.text()
-    ]);
-
-    RAW_MD = parseCSV(t1)
-      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
-      .map(r=>({
-        Fecha:       toDate(r['Fecha']),
-        Closer:      r['Closer'],
-        Agendas:     toN(r['Agendas']),
-        Asistencias: toN(r['Asistencias']),
-        Cierres:     toN(r['Cierres']),
-        Seguimientos:toN(r['Seguimientos']),
-        CashCollect: toN(r['Cash Collect ($)']),
-      })).filter(r=>r.Fecha&&r.Closer);
-
-    RAW_CC = parseCSV(t2)
-      .filter(r=>r['Fecha']&&r['Confirmer'])
-      .map(r=>({
-        Fecha:    toDate(r['Fecha']),
-        Confirmer:r['Confirmer'],
-        Estado:   r['Estado']||'',
-        Closer:   r['Closer']||'',
-      })).filter(r=>r.Fecha);
-
-    RAW_V = parseCSV(t3)
-      .filter(r=>r['Cliente']&&r['Fecha Cierre']&&r['Venta ($)'])
-      .map(r=>({
-        Cliente:       r['Cliente'],
-        'Fecha Cierre':toDate(r['Fecha Cierre']),
-        Closer:        r['Closer'],
-        Plan:          r['Plan'],
-        Venta:         toN(r['Venta ($)']),
-        Cobrado:       toN(r['Cobrado ($)']),
-        Pendiente:     toN(r['PDTE PAGO ($)']),
-      })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
-
-    RAW_C = parseCSV(t4)
-      .filter(r=>r['Fecha Pago']&&r['Monto Pagado'])
-      .map(r=>({
-        Fecha:    toDate(r['Fecha Pago']),
-        Closer:   r['Closer'],
-        Monto:    toN(r['Monto Pagado']),
-        ComCloser:toN(r['Comisión Closer']),
-        ComConf:  toN(r['Comisión Confirmer']),
-        Tipo:     r['Tipo']||'CxC',
-      })).filter(r=>r.Fecha&&r.Monto>0);
-
-    RAW_CL = parseCSV(t5)
-      .filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer')
-      .map(r=>({
-        Fecha:  toDate(r['Fecha']),
-        Closer: r['Closer'],
-        Evento: r['Evento']||'',
-      })).filter(r=>r.Fecha&&r.Closer);
-
-    // Set date range from actual data
-    const allDates = [...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
-    if(allDates.length) {
-      dateFrom = allDates[0];
-      dateTo   = allDates[allDates.length-1];
-      document.getElementById('date-from').value = dateFrom;
-      document.getElementById('date-to').value   = dateTo;
-    }
-
-    document.getElementById('loader').style.display = 'none';
-    const now = new Date();
-    document.getElementById('last-updated').textContent =
-      'Actualizado: ' + now.toLocaleDateString('es-CL') + ' ' +
-      now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-
-    buildMonthPresets();
-    renderAll();
-
-  } catch(err) {
-    document.getElementById('loader').style.display = 'none';
-    document.getElementById('error-banner').style.display = 'flex';
-    document.getElementById('error-msg').textContent = 'Error: ' + err.message;
+    document.getElementById('loader').style.display='none';
+    document.getElementById('error-banner').style.display='flex';
+    document.getElementById('error-msg').textContent='Error: '+err.message;
   }
 }
 
