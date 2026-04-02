@@ -451,8 +451,8 @@ canvas { max-width:100%; }
   <div id="vtable-wrap"><!-- JS --></div>
 
   <div class="divider"></div>
-  <div class="sec"><div class="sec-ico">📅</div><span class="sec-title">Forecast Semanal</span></div>
-  <div class="fc-list" id="fc-list"><!-- JS --></div>
+  <div class="sec"><div class="sec-ico">💼</div><span class="sec-title">Comisiones del Período</span></div>
+  <div id="comisiones-wrap" style="padding:0 16px 16px;"></div>
 </div>
 
 <!-- ═══════════════ PAGE: INSIGHTS ═══════════════ -->
@@ -615,13 +615,14 @@ function renderAll() {
   renderStrip(s);
   renderKPIs(s);
   renderRangeLabel();
+  renderTipo(s);
   renderCashChart(s);
   renderFunnelChart(s);
   renderClosers(s);
   renderRatesChart(s);
   renderConfirmer(s);
-  renderVentas(s);
   renderInsights(s);
+  if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
 }
 
 function renderRangeLabel() {
@@ -905,17 +906,69 @@ function renderVentas(s) {
       </div>${rows}
     </div>`;
 
-  // Forecast semanal from cobros
-  const weekC={};
-  s.co.forEach(r=>{const w=weekOf(r.Fecha);weekC[w]=(weekC[w]||0)+r.Monto;});
-  const wks=Object.keys(weekC).sort();
-  const maxW=Math.max(...wks.map(w=>weekC[w]));
-  document.getElementById('fc-list').innerHTML = wks.map(w=>`
-    <div class="fc-row">
-      <div class="fc-week">${fmtDate(w)}</div>
-      <div class="fc-track"><div class="fc-fill" style="width:${Math.round(weekC[w]/maxW*100)}%"></div></div>
-      <div class="fc-amt">${fmtMoney(weekC[w])}</div>
-    </div>`).join('');
+  // Comisiones
+  const SIN = ['Guillermo'];
+  const comC = {};
+  s.co.forEach(r => {
+    if (SIN.includes(r.Closer)) return;
+    comC[r.Closer] = (comC[r.Closer]||0) + (r.ComCloser||0);
+  });
+  const totConf = s.co.reduce((s,r)=>s+(r.ComConf||0), 0);
+  const cCol = {Ignacio:'var(--gold-deep)', Sebastian:'var(--blue)', Karim:'var(--green)'};
+  const comRows = Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const totComC = comRows.reduce((s,[,v])=>s+v, 0);
+  const cEl = document.getElementById('comisiones-wrap');
+  if (cEl) {
+    cEl.innerHTML =
+      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
+      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
+      + comRows.map(([c,v]) =>
+          '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
+          +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+(cCol[c]||'var(--g2)')+';">'+c[0]+'</div>'
+          +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>'
+          +'<div style="font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div>'
+          +'</div>'
+        ).join('')
+      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
+      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
+      +'<span style="font-weight:700;color:var(--gold-deep);">'+fmtMoney(totComC)+'</span>'
+      +'</div></div>'
+      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">'
+      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>'
+      +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
+      +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);">C</div>'
+      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>'
+      +'<div style="font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div>'
+      +'</div>'
+      +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
+      +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
+      +'<span style="font-weight:700;color:var(--green);">'+fmtMoney(totConf)+'</span>'
+      +'</div></div>';
+  }
+}
+
+function renderTipo(s) {
+  const el = document.getElementById('tipo-row');
+  if (!el) return;
+  const tipos = [
+    {k:'Nuevo',      ico:'✦', col:'var(--green)',    bg:'var(--green-p)'},
+    {k:'CxC',        ico:'↻', col:'var(--gold)',     bg:'var(--gold-pale)'},
+    {k:'Renovación', ico:'★', col:'var(--blue)',     bg:'var(--blue-p)'},
+    {k:'Upsell',     ico:'▲', col:'#7c5cbf',        bg:'#f0edf8'},
+  ];
+  const total = s.totCash || 1;
+  const tipoB = {};
+  ['Nuevo','CxC','Renovación','Upsell'].forEach(t => {
+    tipoB[t] = s.co.filter(r=>r.Tipo===t).reduce((sum,r)=>sum+r.Monto,0);
+  });
+  el.innerHTML = tipos.map(t => {
+    const m = tipoB[t.k]||0, p = Math.round(m/total*100);
+    return '<div class="kpi" style="min-width:110px;border-top:3px solid '+t.col+';">'
+      +'<div class="kpi-lbl" style="display:flex;align-items:center;gap:4px;"><span style="color:'+t.col+';">'+t.ico+'</span>'+t.k.toUpperCase()+'</div>'
+      +'<div class="kpi-val" style="color:'+t.col+';font-size:1.5rem;">'+fmtMoney(m)+'</div>'
+      +'<div class="kpi-sub">'+p+'% del cash</div>'
+    +'</div>';
+  }).join('');
 }
 
 function renderInsights(s) {
@@ -969,6 +1022,7 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   el.classList.add('active');
   window.scrollTo(0,0);
+  if (id === 'ventas' && RAW_C.length) { const s = computeStats(); renderVentas(s); }
 }
 
 function toggleCloser(name) {
@@ -1013,67 +1067,86 @@ async function loadData() {
   document.getElementById('loader').style.display='flex';
   document.getElementById('error-banner').style.display='none';
   try {
-    const sheets = [
-      ['MD', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1069783160&single=true&output=csv'],
-      ['CC', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1996565453&single=true&output=csv'],
-      ['CL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=355815377&single=true&output=csv'],
-      ['V',  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=136016178&single=true&output=csv'],
-      ['CO', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1724312474&single=true&output=csv'],
-      ['PC', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbosrcKR3KPuFGNJAhe7q7UnnMIOtsjOoEECr9rdIWV7b3_spwcSK69SZTuXg8xYVQI3hETWUbYjek/pub?gid=1428682471&single=true&output=csv'],
-    ];
-    const texts = {};
-    for (const [k, url] of sheets) {
-      document.getElementById('loader-msg').textContent = 'Cargando ' + k + '...';
-      const proxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-      const res = await fetch(proxy);
-      if (!res.ok) throw new Error(k + ': HTTP ' + res.status);
-      texts[k] = await res.text();
+    // JSONP — bypasses CORS and Safari restrictions
+    const texts = await new Promise((resolve, reject) => {
+      const cb = 'cb_' + Date.now();
+      const script = document.createElement('script');
+      const timer = setTimeout(() => {
+        delete window[cb];
+        if(document.head.contains(script)) document.head.removeChild(script);
+        reject(new Error('Timeout'));
+      }, 30000);
+      window[cb] = (data) => {
+        clearTimeout(timer);
+        delete window[cb];
+        if(document.head.contains(script)) document.head.removeChild(script);
+        resolve(data);
+      };
+      script.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo cargar Apps Script')); };
+      script.src = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec?callback=' + cb;
+      document.head.appendChild(script);
+    });
+
+    function toDateAS(val) {
+      if (!val) return null;
+      if (val instanceof Date) {
+        return val.getFullYear()+'-'+String(val.getMonth()+1).padStart(2,'0')+'-'+String(val.getDate()).padStart(2,'0');
+      }
+      return toDate(String(val));
     }
-    RAW_MD=parseCSV(texts.MD).filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer').map(r=>({
-      Fecha:toDate(r['Fecha']),Closer:r['Closer'],
-      Agendas:toN(r['Agendas']),Asistencias:toN(r['Asistencias']),
-      Cierres:toN(r['Cierres']),Seguimientos:toN(r['Seguimientos']),
-      CashCollect:toN(r['Cash Collect ($)']),
-    })).filter(r=>r.Fecha&&r.Closer);
 
-    RAW_CC=parseCSV(texts.CC).filter(r=>r['Fecha']&&r['Confirmer']).map(r=>({
-      Fecha:toDate(r['Fecha']),Confirmer:r['Confirmer'],
-      Estado:r['Estado']||'',Closer:r['Closer']||'',
-    })).filter(r=>r.Fecha);
+    RAW_MD = (texts['METRICAS_DIARIAS']||[])
+      .filter(r => r['Fecha'] && r['Closer'] && r['Closer'] !== 'Closer')
+      .map(r => ({
+        Fecha: toDateAS(r['Fecha']), Closer: String(r['Closer']),
+        Agendas: toN(r['Agendas']), Asistencias: toN(r['Asistencias']),
+        Cierres: toN(r['Cierres']), Seguimientos: toN(r['Seguimientos']),
+        CashCollect: toN(r['Cash Collect ($)']),
+      })).filter(r => r.Fecha && r.Closer);
 
-    RAW_CL=parseCSV(texts.CL).filter(r=>r['Fecha']&&r['Closer']&&r['Closer']!=='Closer').map(r=>({
-      Fecha:toDate(r['Fecha']),Closer:r['Closer'],Evento:r['Evento']||'',
-    })).filter(r=>r.Fecha&&r.Closer);
+    RAW_CC = (texts['CALL_CONFIRMER_LOG']||[])
+      .filter(r => r['Fecha'] && r['Confirmer'])
+      .map(r => ({
+        Fecha: toDateAS(r['Fecha']), Confirmer: String(r['Confirmer']),
+        Estado: String(r['Estado']||''), Closer: String(r['Closer']||''),
+      })).filter(r => r.Fecha);
 
-    RAW_V=parseCSV(texts.V).filter(r=>r['Cliente']&&r['Venta ($)']).map(r=>{
-      const keys=Object.keys(r);
-      const fechaKey=keys.find(k=>k.toLowerCase().includes('fecha')&&k.toLowerCase().includes('cierre'))||'Fecha Cierre';
-      return {
-        Cliente:r['Cliente'],
-        'Fecha Cierre':toDate(r[fechaKey]||r['Fecha Cierre']),
-        Closer:r['Closer'],Plan:r['Plan'],
-        Venta:toN(r['Venta ($)']),Cobrado:toN(r['Cobrado ($)']),Pendiente:toN(r['PDTE PAGO ($)']),
-      };
-    }).filter(r=>r['Fecha Cierre']&&r.Venta>0);
+    RAW_CL = (texts['CLOSER_LOG']||[])
+      .filter(r => r['Fecha'] && r['Closer'] && r['Closer'] !== 'Closer')
+      .map(r => ({
+        Fecha: toDateAS(r['Fecha']), Closer: String(r['Closer']),
+        Evento: String(r['Evento']||''),
+      })).filter(r => r.Fecha && r.Closer);
 
-    RAW_C=parseCSV(texts.CO).filter(r=>r['Fecha Pago']&&r['Monto Pagado']).map(r=>{
-      // Handle special chars in column names — find by partial match
-      const keys=Object.keys(r);
-      const comCloser=keys.find(k=>k.toLowerCase().includes('closer')&&k.toLowerCase().includes('comis'));
-      const comConf=keys.find(k=>k.toLowerCase().includes('confirm')&&k.toLowerCase().includes('comis'));
-      return {
-        Fecha:toDate(r['Fecha Pago']),Closer:r['Closer'],
-        Monto:toN(r['Monto Pagado']),
-        ComCloser:comCloser?toN(r[comCloser]):0,
-        ComConf:comConf?toN(r[comConf]):0,
-        Tipo:r['Tipo']||'CxC',
-      };
-    }).filter(r=>r.Fecha&&r.Monto>0);
+    RAW_V = (texts['VENTAS']||[])
+      .filter(r => r['Cliente'] && r['Venta ($)'])
+      .map(r => ({
+        Cliente: String(r['Cliente']),
+        'Fecha Cierre': toDateAS(r['Fecha Cierre']),
+        Closer: String(r['Closer']), Plan: String(r['Plan']),
+        Venta: toN(r['Venta ($)']), Cobrado: toN(r['Cobrado ($)']),
+        Pendiente: toN(r['PDTE PAGO ($)']),
+      })).filter(r => r['Fecha Cierre'] && r.Venta > 0);
 
-    RAW_PC=parseCSV(texts.PC).filter(r=>r['Fecha Vencimiento']).map(r=>({
-      FechaVenc:toDate(r['Fecha Vencimiento']),Closer:r['Closer'],
-      Monto:toN(r['Por Pagar']),Estado:r['Estado']||'',LeadMail:r['Lead Mail']||'',
-    })).filter(r=>r.FechaVenc&&r.Monto>0);
+    RAW_C = (texts['COBROS_DIARIOS']||[])
+      .filter(r => r['Fecha Pago'] && r['Monto Pagado'])
+      .map(r => ({
+        Fecha: toDateAS(r['Fecha Pago']), Closer: String(r['Closer']),
+        Monto: toN(r['Monto Pagado']),
+        ComCloser: toN(r['Comisión Closer']),
+        ComConf: toN(r['Comisión Confirmer']),
+        Tipo: String(r['Tipo']||'CxC'),
+      })).filter(r => r.Fecha && r.Monto > 0);
+
+    RAW_PC = (texts['PLAN_CUOTAS']||[])
+      .filter(r => r['Fecha Vencimiento'])
+      .map(r => ({
+        FechaVenc: toDateAS(r['Fecha Vencimiento']),
+        Closer: String(r['Closer']),
+        Monto: toN(r['Por Pagar']),
+        Estado: String(r['Estado']||''),
+        LeadMail: String(r['Lead Mail']||''),
+      })).filter(r => r.FechaVenc && r.Monto > 0);
 
     const allDates=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
     if(allDates.length) {
