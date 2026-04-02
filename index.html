@@ -1024,12 +1024,8 @@ async function loadData() {
     const texts = {};
     for (const [k, url] of sheets) {
       document.getElementById('loader-msg').textContent = 'Cargando ' + k + '...';
-      const res = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'omit',
-        cache: 'no-cache',
-      });
+      const proxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+      const res = await fetch(proxy);
       if (!res.ok) throw new Error(k + ': HTTP ' + res.status);
       texts[k] = await res.text();
     }
