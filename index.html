@@ -1049,17 +1049,30 @@ async function loadData() {
       Fecha:toDate(r['Fecha']),Closer:r['Closer'],Evento:r['Evento']||'',
     })).filter(r=>r.Fecha&&r.Closer);
 
-    RAW_V=parseCSV(texts.V).filter(r=>r['Cliente']&&r['Fecha Cierre']&&r['Venta ($)']).map(r=>({
-      Cliente:r['Cliente'],'Fecha Cierre':toDate(r['Fecha Cierre']),
-      Closer:r['Closer'],Plan:r['Plan'],
-      Venta:toN(r['Venta ($)']),Cobrado:toN(r['Cobrado ($)']),Pendiente:toN(r['PDTE PAGO ($)']),
-    })).filter(r=>r['Fecha Cierre']&&r.Venta>0);
+    RAW_V=parseCSV(texts.V).filter(r=>r['Cliente']&&r['Venta ($)']).map(r=>{
+      const keys=Object.keys(r);
+      const fechaKey=keys.find(k=>k.toLowerCase().includes('fecha')&&k.toLowerCase().includes('cierre'))||'Fecha Cierre';
+      return {
+        Cliente:r['Cliente'],
+        'Fecha Cierre':toDate(r[fechaKey]||r['Fecha Cierre']),
+        Closer:r['Closer'],Plan:r['Plan'],
+        Venta:toN(r['Venta ($)']),Cobrado:toN(r['Cobrado ($)']),Pendiente:toN(r['PDTE PAGO ($)']),
+      };
+    }).filter(r=>r['Fecha Cierre']&&r.Venta>0);
 
-    RAW_C=parseCSV(texts.CO).filter(r=>r['Fecha Pago']&&r['Monto Pagado']).map(r=>({
-      Fecha:toDate(r['Fecha Pago']),Closer:r['Closer'],
-      Monto:toN(r['Monto Pagado']),ComCloser:toN(r['Comisión Closer']),
-      ComConf:toN(r['Comisión Confirmer']),Tipo:r['Tipo']||'CxC',
-    })).filter(r=>r.Fecha&&r.Monto>0);
+    RAW_C=parseCSV(texts.CO).filter(r=>r['Fecha Pago']&&r['Monto Pagado']).map(r=>{
+      // Handle special chars in column names — find by partial match
+      const keys=Object.keys(r);
+      const comCloser=keys.find(k=>k.toLowerCase().includes('closer')&&k.toLowerCase().includes('comis'));
+      const comConf=keys.find(k=>k.toLowerCase().includes('confirm')&&k.toLowerCase().includes('comis'));
+      return {
+        Fecha:toDate(r['Fecha Pago']),Closer:r['Closer'],
+        Monto:toN(r['Monto Pagado']),
+        ComCloser:comCloser?toN(r[comCloser]):0,
+        ComConf:comConf?toN(r[comConf]):0,
+        Tipo:r['Tipo']||'CxC',
+      };
+    }).filter(r=>r.Fecha&&r.Monto>0);
 
     RAW_PC=parseCSV(texts.PC).filter(r=>r['Fecha Vencimiento']).map(r=>({
       FechaVenc:toDate(r['Fecha Vencimiento']),Closer:r['Closer'],
