@@ -415,6 +415,10 @@ canvas { max-width:100%; }
   </div>
 
   <div class="divider"></div>
+  <div class="sec"><div class="sec-ico">💸</div><span class="sec-title">Origen del Cash</span><span class="sec-sub">Por tipo de cobro</span></div>
+  <div class="kpi-row" id="tipo-row"></div>
+
+  <div class="divider"></div>
   <div class="sec"><div class="sec-ico">📈</div><span class="sec-title">Cash Semanal</span></div>
   <div class="cc"><h3>Evolución de Cobros</h3><div class="cc-sub">USD · Semana a semana</div><canvas id="c-cash" height="180"></canvas></div>
   <div class="cc"><h3>Embudo por Closer</h3><div class="cc-sub">Agendas → Asistencias → Cierres</div><canvas id="c-funnel" height="180"></canvas></div>
@@ -578,9 +582,17 @@ function computeStats() {
     };
   });
 
-  // Weekly cash
+  // Weekly cash (total + by tipo)
+  const TIPOS = ['Nuevo','CxC','Renovación','Upsell'];
   const weekCash = {};
-  co.forEach(r => { const w=weekOf(r.Fecha); weekCash[w]=(weekCash[w]||0)+r.Monto; });
+  const weekCashByTipo = {};
+  co.forEach(r => {
+    const w = weekOf(r.Fecha);
+    weekCash[w] = (weekCash[w]||0) + r.Monto;
+    if (!weekCashByTipo[w]) weekCashByTipo[w] = {Nuevo:0,CxC:0,'Renovación':0,Upsell:0};
+    const t = TIPOS.includes(r.Tipo) ? r.Tipo : 'CxC';
+    weekCashByTipo[w][t] += r.Monto;
+  });
 
   // Weekly confirmer
   const weekConf = {};
@@ -604,7 +616,7 @@ function computeStats() {
     confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
   });
 
-  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
+  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekCashByTipo,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
 }
 
 // ═══════════════════════════════════════════════
@@ -659,19 +671,37 @@ function renderKPIs(s) {
 function renderCashChart(s) {
   destroyChart('cash');
   const weeks = Object.keys(s.weekCash).sort();
-  const vals  = weeks.map(w=>Math.round(s.weekCash[w]));
   const ctx = document.getElementById('c-cash').getContext('2d');
+  const tipoConfig = [
+    {key:'Nuevo',      label:'Nuevo',      color:'#3d6b50', colorP:'rgba(61,107,80,.75)'},
+    {key:'CxC',        label:'CxC',        color:'#a8832a', colorP:'rgba(168,131,42,.75)'},
+    {key:'Renovación', label:'Renovación', color:'#2a527a', colorP:'rgba(42,82,122,.75)'},
+    {key:'Upsell',     label:'Upsell',     color:'#7c5cbf', colorP:'rgba(124,92,191,.75)'},
+  ];
   charts['cash'] = new Chart(ctx,{
-    type:'line',
-    data:{ labels:weeks.map(fmtDate), datasets:[{
-      label:'USD',data:vals,borderColor:GOLD,backgroundColor:GOLD_P,
-      borderWidth:2.5,pointBackgroundColor:GOLD,pointBorderColor:'#fff',
-      pointBorderWidth:2,pointRadius:5,fill:true,tension:.35
-    }]},
-    options:{responsive:true,plugins:{legend:{display:false}},scales:{
-      y:{grid:{color:'#f0ece4'},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}},
-      x:{grid:{color:'#f0ece4'}}
-    }}
+    type:'bar',
+    data:{
+      labels: weeks.map(fmtDate),
+      datasets: tipoConfig.map(t=>({
+        label: t.label,
+        data: weeks.map(w => Math.round((s.weekCashByTipo[w]||{})[t.key]||0)),
+        backgroundColor: t.colorP,
+        borderColor: t.color,
+        borderWidth: 1,
+        borderRadius: 3,
+      }))
+    },
+    options:{
+      responsive: true,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:10,padding:12,color:'#68655e'}},
+        tooltip:{callbacks:{label: ctx => ' '+ctx.dataset.label+': $'+(ctx.parsed.y/1000).toFixed(1)+'K'}}
+      },
+      scales:{
+        x:{stacked:true, grid:{color:'#f0ece4'}},
+        y:{stacked:true, grid:{color:'#f0ece4'}, ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}}
+      }
+    }
   });
 }
 
@@ -907,20 +937,81 @@ function renderVentas(s) {
     </div>`;
 
   // Comisiones
+  const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
   const SIN = ['Guillermo'];
+  const cCol = {Ignacio:'var(--gold-deep)', Sebastian:'var(--blue)', Karim:'var(--green)'};
+
+  // Totals per closer and confirmer
   const comC = {};
   s.co.forEach(r => {
     if (SIN.includes(r.Closer)) return;
     comC[r.Closer] = (comC[r.Closer]||0) + (r.ComCloser||0);
   });
-  const totConf = s.co.reduce((s,r)=>s+(r.ComConf||0), 0);
-  const cCol = {Ignacio:'var(--gold-deep)', Sebastian:'var(--blue)', Karim:'var(--green)'};
+  const totConf = s.co.reduce((acc,r)=>acc+(r.ComConf||0), 0);
   const comRows = Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const totComC = comRows.reduce((s,[,v])=>s+v, 0);
+  const totComC = comRows.reduce((acc,[,v])=>acc+v, 0);
+
+  // Monthly breakdown: Ignacio, Sebastian, Claudia
+  const monthlyMap = {};
+  s.co.forEach(r => {
+    if (!r.Fecha) return;
+    const ym = r.Fecha.slice(0,7);
+    if (!monthlyMap[ym]) monthlyMap[ym] = {Ignacio:0, Sebastian:0, Claudia:0};
+    if (!SIN.includes(r.Closer) && r.ComCloser > 0) {
+      if (r.Closer === 'Ignacio')   monthlyMap[ym].Ignacio   += r.ComCloser;
+      if (r.Closer === 'Sebastian') monthlyMap[ym].Sebastian += r.ComCloser;
+    }
+    if (r.ComConf > 0) monthlyMap[ym].Claudia += r.ComConf;
+  });
+  const monthKeys = Object.keys(monthlyMap).sort();
+  const totI  = monthKeys.reduce((a,m)=>a+monthlyMap[m].Ignacio,0);
+  const totSe = monthKeys.reduce((a,m)=>a+monthlyMap[m].Sebastian,0);
+  const totCl = monthKeys.reduce((a,m)=>a+monthlyMap[m].Claudia,0);
+
+  const monthTableRows = monthKeys.map(ym => {
+    const mn = MNAMES_C[ym.slice(5,7)] + ' ' + ym.slice(0,4);
+    const d = monthlyMap[ym];
+    const rowTot = d.Ignacio + d.Sebastian + d.Claudia;
+    return '<tr>'
+      +'<td style="padding:9px 10px;font-size:.68rem;color:var(--g2);font-weight:500;border-bottom:1px solid var(--border);">'+mn+'</td>'
+      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:var(--gold-deep);border-bottom:1px solid var(--border);">'+(d.Ignacio>0?fmtMoney(d.Ignacio):'—')+'</td>'
+      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:var(--blue);border-bottom:1px solid var(--border);">'+(d.Sebastian>0?fmtMoney(d.Sebastian):'—')+'</td>'
+      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:var(--green);border-bottom:1px solid var(--border);">'+(d.Claudia>0?fmtMoney(d.Claudia):'—')+'</td>'
+      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.82rem;color:var(--g1);border-bottom:1px solid var(--border);">'+fmtMoney(rowTot)+'</td>'
+      +'</tr>';
+  }).join('');
+
   const cEl = document.getElementById('comisiones-wrap');
   if (cEl) {
     cEl.innerHTML =
-      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
+      // ── MONTHLY BREAKDOWN TABLE ──
+      '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px;">'
+      +'<div style="padding:11px 14px;background:var(--g1);display:flex;align-items:center;gap:8px;">'
+      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:.88rem;color:#fff;">Desglose Mensual</span>'
+      +'<span style="font-size:.58rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;margin-left:auto;">USD</span>'
+      +'</div>'
+      +'<div style="overflow-x:auto;">'
+      +'<table style="width:100%;border-collapse:collapse;">'
+      +'<thead><tr style="background:var(--bg);">'
+      +'<th style="padding:8px 10px;text-align:left;font-size:.57rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Mes</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--gold-deep);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Ignacio</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--blue);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Sebastian</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--green);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Claudia</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Total</th>'
+      +'</tr></thead>'
+      +'<tbody>'+monthTableRows+'</tbody>'
+      +'<tfoot><tr style="background:var(--bg);">'
+      +'<td style="padding:10px 10px;font-size:.65rem;font-weight:700;color:var(--g1);text-transform:uppercase;letter-spacing:.05em;">TOTAL</td>'
+      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:var(--gold-deep);">'+fmtMoney(totI)+'</td>'
+      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:var(--blue);">'+fmtMoney(totSe)+'</td>'
+      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:var(--green);">'+fmtMoney(totCl)+'</td>'
+      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--g1);">'+fmtMoney(totI+totSe+totCl)+'</td>'
+      +'</tr></tfoot>'
+      +'</table>'
+      +'</div></div>'
+
+      // ── CLOSER CARDS ──
+      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'
       +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
       + comRows.map(([c,v]) =>
           '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
@@ -933,11 +1024,13 @@ function renderVentas(s) {
       +'<span style="font-size:.6rem;color:var(--g3);font-weight:600;text-transform:uppercase;">Total</span>'
       +'<span style="font-weight:700;color:var(--gold-deep);">'+fmtMoney(totComC)+'</span>'
       +'</div></div>'
+
+      // ── CONFIRMER CARD ──
       +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);">'
-      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmers</div>'
+      +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmer</div>'
       +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
       +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);">C</div>'
-      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia · Karim</div>'
+      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia</div>'
       +'<div style="font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div>'
       +'</div>'
       +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
