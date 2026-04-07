@@ -1160,11 +1160,12 @@ function renderBonos(s) {
         r.Cobrado > 0
       ).length;
 
-      // Ventas pagadas 100% al contado · sin cuotas (Bono pago contado)
+      // Ventas pagadas 100% al contado · clientes nuevos únicamente (Bono pago contado)
       const ventasContado = s.v.filter(r=>
         r.Closer===closer &&
         r['Fecha Cierre'] && r['Fecha Cierre'].slice(0,7)===ym &&
-        r.Pendiente <= 0.01 && r.Cobrado > 0
+        r.Pendiente <= 0.01 && r.Cobrado > 0 &&
+        !r.Plan.toLowerCase().includes('renov')
       ).length;
 
       // Bono 1: pago completo al contado · $30 c/u
