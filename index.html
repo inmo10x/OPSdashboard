@@ -1161,11 +1161,12 @@ function renderBonos(s) {
       ).length;
 
       // Ventas pagadas 100% al contado · clientes nuevos únicamente (Bono pago contado)
+      // Se excluyen renovaciones según columna Notas de la hoja VENTAS
       const ventasContado = s.v.filter(r=>
         r.Closer===closer &&
         r['Fecha Cierre'] && r['Fecha Cierre'].slice(0,7)===ym &&
         r.Pendiente <= 0.01 && r.Cobrado > 0 &&
-        !r.Plan.toLowerCase().includes('renov')
+        !r.Tipo.toLowerCase().includes('renov')
       ).length;
 
       // Bono 1: pago completo al contado · $30 c/u
@@ -1365,6 +1366,7 @@ async function loadData() {
         Closer: String(r['Closer']), Plan: String(r['Plan']),
         Venta: toN(r['Venta ($)']), Cobrado: toN(r['Cobrado ($)']),
         Pendiente: toN(r['PDTE PAGO ($)']),
+        Tipo: String(r['Tipo']||''),
       })).filter(r => r['Fecha Cierre'] && r.Venta > 0);
 
     RAW_C = (texts['COBROS_DIARIOS']||[])
