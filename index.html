@@ -408,7 +408,8 @@ canvas { max-width:100%; }
   <div class="kpi-row" id="kpi-row">
     <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div></div>
     <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Ventas #</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">pipeline</div></div>
+    <div class="kpi gn"><div class="kpi-lbl">Ventas Nuevas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">clientes nuevos</div></div>
+    <div class="kpi bl"><div class="kpi-lbl">Renovaciones</div><div class="kpi-val" id="k-renov">—</div><div class="kpi-sub" id="k-renov-sub">clientes activos</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div></div>
     <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div></div>
     <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div></div>
@@ -577,6 +578,10 @@ function computeStats() {
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
   const totCobrado = v.reduce((s,r)=>s+r.Cobrado,0);
   const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
+  const vNuevas = v.filter(r=>!r.Tipo.toLowerCase().includes('renov'));
+  const vRenov  = v.filter(r=> r.Tipo.toLowerCase().includes('renov'));
+  const totNuevas = vNuevas.length;
+  const totRenov  = vRenov.length;
 
   const allCN=[...new Set([...md.map(r=>r.Closer),...clFilt.map(r=>r.Closer)])].filter(Boolean);
   const ORDER=['Ignacio','Sebastian','Karim','Guillermo'];
@@ -631,7 +636,7 @@ function computeStats() {
     confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
   });
 
-  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,byCloser,weekCash,weekCashByTipo,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
+  return {md,cc,v,co,totAg,totAs,totCi,totCash,totVenta,totCobrado,totPdte,totNuevas,totRenov,vNuevas,vRenov,byCloser,weekCash,weekCashByTipo,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
 }
 
 // ═══════════════════════════════════════════════
@@ -661,26 +666,28 @@ function renderRangeLabel() {
 
 function renderStrip(s) {
   const showRate = pct(s.totAs, s.totAg);
-  const closeRate = pct(s.totCi, s.totAs);
+  const closeRate = pct(s.totNuevas, s.totAs);
   document.getElementById('s-cash').textContent    = fmtMoney(s.totCash);
-  document.getElementById('s-ventas').textContent  = s.v.length;
+  document.getElementById('s-ventas').textContent  = s.totNuevas+'+'+(s.totRenov);
   document.getElementById('s-close').textContent   = closeRate+'%';
   document.getElementById('s-show').textContent    = showRate+'%';
 }
 
 function renderKPIs(s) {
-  const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
+  const sr = pct(s.totAs,s.totAg), cr = pct(s.totNuevas,s.totAs);
   const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
   document.getElementById('k-cash').textContent         = fmtMoney(s.totCash);
   document.getElementById('k-venta-total').textContent     = fmtMoney(s.totVenta);
   document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
-  document.getElementById('k-ventas').textContent  = s.v.length;
-  document.getElementById('k-ventas-sub').textContent = fmtMoney(s.totVenta)+' pipeline';
+  document.getElementById('k-ventas').textContent     = s.totNuevas;
+  document.getElementById('k-ventas-sub').textContent = s.totNuevas+' contrato'+(s.totNuevas!==1?'s':'');
+  document.getElementById('k-renov').textContent      = s.totRenov;
+  document.getElementById('k-renov-sub').textContent  = s.totRenov+' contrato'+(s.totRenov!==1?'s':'');
   document.getElementById('k-agendas').textContent = s.totAg;
   document.getElementById('k-show').textContent    = sr+'%';
   document.getElementById('k-show-sub').textContent = s.totAs+'/'+s.totAg+' asist.';
   document.getElementById('k-close').textContent   = cr+'%';
-  document.getElementById('k-close-sub').textContent = s.totCi+'/'+s.totAs+' cierres';
+  document.getElementById('k-close-sub').textContent = s.totNuevas+'/'+s.totAs+' nuevas';
   document.getElementById('k-ticket').textContent  = fmtMoney(ticket);
 }
 
@@ -1081,7 +1088,7 @@ function renderTipo(s) {
 }
 
 function renderInsights(s) {
-  const sr = pct(s.totAs,s.totAg), cr = pct(s.totCi,s.totAs);
+  const sr = pct(s.totAs,s.totAg), cr = pct(s.totNuevas,s.totAs);
   const I = s.byCloser['Ignacio']||{};
   const Se = s.byCloser['Sebastian']||{};
   const Ka = s.byCloser['Karim']||{};
@@ -1153,11 +1160,12 @@ function renderBonos(s) {
       const cashMes = s.co.filter(r=>r.Closer===closer && r.Fecha && r.Fecha.slice(0,7)===ym)
                           .reduce((a,r)=>a+r.Monto, 0);
 
-      // Ventas cerradas en el mes con al menos algún cobro (Bono cantidad)
+      // Ventas cerradas en el mes con al menos algún cobro · solo clientes nuevos (Bono cantidad)
       const ventasCerradas = s.v.filter(r=>
         r.Closer===closer &&
         r['Fecha Cierre'] && r['Fecha Cierre'].slice(0,7)===ym &&
-        r.Cobrado > 0
+        r.Cobrado > 0 &&
+        !r.Tipo.toLowerCase().includes('renov')
       ).length;
 
       // Ventas pagadas 100% al contado · clientes nuevos únicamente (Bono pago contado)
