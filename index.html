@@ -346,6 +346,47 @@ canvas { max-width:100%; }
   font-size:.75rem; line-height:1.6;
 }
 .no-data span { display:block; font-size:1.8rem; margin-bottom:8px; }
+
+/* ── KPI DELTA ──────────────────────────────── */
+.kpi-delta {
+  font-size:.57rem; font-weight:600; margin-top:5px;
+  display:inline-flex; align-items:center; gap:2px; letter-spacing:.02em;
+}
+.kpi-delta.up   { color:var(--green); }
+.kpi-delta.down { color:var(--red); }
+.kpi-delta.flat { color:var(--g4); }
+
+/* ── EXPORT BUTTON ──────────────────────────── */
+.export-btn {
+  background:var(--bg); border:1px solid var(--border); color:var(--g3);
+  font-family:'DM Sans',sans-serif; font-size:.62rem; font-weight:600;
+  padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap;
+  letter-spacing:.04em; transition: all .15s; flex-shrink:0;
+}
+.export-btn:hover { border-color:var(--gold-l); color:var(--gold-deep); background:var(--gold-pale); }
+
+/* ── CLOSER SEARCH ──────────────────────────── */
+.closer-search { padding:0 16px 12px; }
+.closer-search-input {
+  width:100%; background:var(--bg); border:1px solid var(--border); color:var(--g1);
+  font-family:'DM Sans',sans-serif; font-size:.72rem; padding:8px 12px;
+  border-radius:6px; outline:none; transition: border-color .15s;
+}
+.closer-search-input:focus { border-color:var(--gold); }
+.closer-search-input::placeholder { color:var(--g4); }
+
+/* ── PRINT STYLES ───────────────────────────── */
+@media print {
+  .header, .export-btn, #error-banner, #loader,
+  .closer-search, .date-bar, .nav-tabs { display:none !important; }
+  .page { display:block !important; page-break-inside:avoid; }
+  .strip { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .kpi,.ccard,.cc,.vtable-wrap { break-inside:avoid; box-shadow:none !important; }
+  .kpi-row { flex-wrap:wrap; overflow:visible !important; }
+  body { background:#fff; }
+  canvas { max-height:280px !important; }
+  .cdetail { display:block !important; }
+}
 </style>
 </head>
 <body>
@@ -363,7 +404,10 @@ canvas { max-width:100%; }
 <div class="header">
   <div class="header-top">
     <div class="logo">CONVIERTE <span>OPS</span></div>
-    <div style="text-align:right"><span class="live">EN VIVO</span><div id="last-updated" style="font-size:.52rem;color:var(--g4);margin-top:2px;"></div></div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="export-btn" onclick="exportPDF()">⬇ PDF</button>
+      <div style="text-align:right"><span class="live">EN VIVO</span><div id="last-updated" style="font-size:.52rem;color:var(--g4);margin-top:2px;"></div></div>
+    </div>
   </div>
 
   <!-- DATE FILTER -->
@@ -376,7 +420,7 @@ canvas { max-width:100%; }
       <button class="preset" onclick="setPreset('all')">Todo</button>
       <button class="preset" onclick="setPreset('last7')">7d</button>
     </div>
-    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" onclick="loadData()">↻</button>
+    <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" title="Forzar recarga" onclick="loadData(true)">↻</button>
   </div>
 
   <!-- NAV TABS -->
@@ -406,14 +450,14 @@ canvas { max-width:100%; }
     <span class="sec-sub" id="range-label">Feb–Mar 2026</span>
   </div>
   <div class="kpi-row" id="kpi-row">
-    <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Ventas Nuevas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">clientes nuevos</div></div>
-    <div class="kpi bl"><div class="kpi-lbl">Renovaciones</div><div class="kpi-val" id="k-renov">—</div><div class="kpi-sub" id="k-renov-sub">clientes activos</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div></div>
-    <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Ticket Prom.</div><div class="kpi-val" id="k-ticket">—</div><div class="kpi-sub">USD / venta</div></div>
+    <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div><div id="k-cash-delta"></div></div>
+    <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div><div id="k-venta-total-delta"></div></div>
+    <div class="kpi gn"><div class="kpi-lbl">Ventas Nuevas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">clientes nuevos</div><div id="k-ventas-delta"></div></div>
+    <div class="kpi bl"><div class="kpi-lbl">Renovaciones</div><div class="kpi-val" id="k-renov">—</div><div class="kpi-sub" id="k-renov-sub">clientes activos</div><div id="k-renov-delta"></div></div>
+    <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div><div id="k-agendas-delta"></div></div>
+    <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div><div id="k-show-delta"></div></div>
+    <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div><div id="k-close-delta"></div></div>
+    <div class="kpi gy"><div class="kpi-lbl">Ticket Prom.</div><div class="kpi-val" id="k-ticket">—</div><div class="kpi-sub">USD / venta</div><div id="k-ticket-delta"></div></div>
   </div>
 
   <div class="divider"></div>
@@ -429,6 +473,9 @@ canvas { max-width:100%; }
 <!-- ═══════════════ PAGE: CLOSERS ═══════════════ -->
 <div id="page-closers" class="page">
   <div class="sec"><div class="sec-ico">👤</div><span class="sec-title">Performance Closers</span></div>
+  <div class="closer-search">
+    <input type="search" id="closer-search-input" class="closer-search-input" placeholder="🔍 Buscar closer..." oninput="filterClosers(this.value)">
+  </div>
   <div class="closer-list" id="closer-list">
     <!-- rendered by JS -->
   </div>
@@ -561,6 +608,58 @@ const BLUE='#2a527a',  BLUE_P='rgba(42,82,122,.12)';
 const GY='#9a978f',    GY_P='rgba(154,151,143,.12)';
 
 // ═══════════════════════════════════════════════
+//  PREVIOUS PERIOD COMPARISON
+// ═══════════════════════════════════════════════
+function computePrevStats() {
+  if (!dateFrom || !dateTo) return null;
+  const d1 = new Date(dateFrom + 'T12:00:00'), d2 = new Date(dateTo + 'T12:00:00');
+  const duration = Math.round((d2 - d1) / 86400000);
+  const prevTo   = new Date(d1); prevTo.setDate(prevTo.getDate() - 1);
+  const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - duration);
+  const pFrom = prevFrom.toISOString().slice(0,10);
+  const pTo   = prevTo.toISOString().slice(0,10);
+  const inP   = d => d && d >= pFrom && d <= pTo;
+
+  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
+  const md  = RAW_MD.filter(r => inP(r.Fecha));
+  const v   = RAW_V.filter(r  => inP(r['Fecha Cierre']));
+  const co  = RAW_C.filter(r  => inP(r.Fecha));
+  const clF = RAW_CL.filter(r => inP(r.Fecha));
+
+  const totAg  = md.reduce((s,r)=>s+r.Agendas,0);
+  const totAs  = clF.length ? clF.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length
+                             : md.reduce((s,r)=>s+r.Asistencias,0);
+  const totCash   = co.reduce((s,r)=>s+r.Monto,0);
+  const totVenta  = v.reduce((s,r)=>s+r.Venta,0);
+  const vNuevas   = v.filter(r=>!r.Tipo.toLowerCase().includes('renov'));
+  const totNuevas = vNuevas.length;
+  const totRenov  = v.filter(r=>r.Tipo.toLowerCase().includes('renov')).length;
+  const ticket    = v.length ? Math.round(totVenta / v.length) : 0;
+
+  return { totAg, totAs, totCash, totVenta, totNuevas, totRenov, ticket,
+           sr: pct(totAs, totAg), cr: pct(totNuevas, totAs) };
+}
+
+// delta para valores absolutos → muestra % de cambio
+function delta(curr, prev) {
+  if (typeof prev !== 'number') return '';
+  if (prev === 0) return curr > 0 ? '<span class="kpi-delta up">▲ nuevo</span>' : '';
+  const d = Math.round((curr - prev) / Math.abs(prev) * 100);
+  if (Math.abs(d) < 1) return '<span class="kpi-delta flat">→ sin cambio</span>';
+  const cls = d > 0 ? 'up' : 'down', arrow = d > 0 ? '▲' : '▼';
+  return `<span class="kpi-delta ${cls}">${arrow} ${Math.abs(d)}% vs ant.</span>`;
+}
+
+// delta para tasas/porcentajes → muestra diferencia en pp
+function deltaP(curr, prev) {
+  if (typeof prev !== 'number') return '';
+  const d = curr - prev;
+  if (Math.abs(d) < 1) return '<span class="kpi-delta flat">→ igual</span>';
+  const cls = d > 0 ? 'up' : 'down', arrow = d > 0 ? '▲' : '▼';
+  return `<span class="kpi-delta ${cls}">${arrow} ${Math.abs(d)}pp vs ant.</span>`;
+}
+
+// ═══════════════════════════════════════════════
 //  COMPUTE STATS
 // ═══════════════════════════════════════════════
 function computeStats() {
@@ -676,6 +775,8 @@ function renderStrip(s) {
 function renderKPIs(s) {
   const sr = pct(s.totAs,s.totAg), cr = pct(s.totNuevas,s.totAs);
   const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
+  const p = computePrevStats();
+
   document.getElementById('k-cash').textContent         = fmtMoney(s.totCash);
   document.getElementById('k-venta-total').textContent     = fmtMoney(s.totVenta);
   document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
@@ -689,6 +790,18 @@ function renderKPIs(s) {
   document.getElementById('k-close').textContent   = cr+'%';
   document.getElementById('k-close-sub').textContent = s.totNuevas+'/'+s.totAs+' nuevas';
   document.getElementById('k-ticket').textContent  = fmtMoney(ticket);
+
+  // Deltas vs período anterior
+  if (p) {
+    document.getElementById('k-cash-delta').innerHTML       = delta(s.totCash,   p.totCash);
+    document.getElementById('k-venta-total-delta').innerHTML= delta(s.totVenta,  p.totVenta);
+    document.getElementById('k-ventas-delta').innerHTML     = delta(s.totNuevas, p.totNuevas);
+    document.getElementById('k-renov-delta').innerHTML      = delta(s.totRenov,  p.totRenov);
+    document.getElementById('k-agendas-delta').innerHTML    = delta(s.totAg,     p.totAg);
+    document.getElementById('k-show-delta').innerHTML       = deltaP(sr,         p.sr);
+    document.getElementById('k-close-delta').innerHTML      = deltaP(cr,         p.cr);
+    document.getElementById('k-ticket-delta').innerHTML     = delta(ticket,      p.ticket);
+  }
 }
 
 function renderCashChart(s) {
@@ -845,6 +958,9 @@ function renderClosers(s) {
   document.getElementById('closer-list').innerHTML = html || '<div class="no-data"><span>🔍</span>Sin datos en este período</div>';
 }
 
+const TARGET_SHOW  = 70;  // Meta Show Rate %
+const TARGET_CLOSE = 25;  // Meta Close Rate %
+
 function renderRatesChart(s) {
   destroyChart('rates');
   const cls = s.closers.filter(c=>s.byCloser[c].ag>0);
@@ -855,14 +971,34 @@ function renderRatesChart(s) {
       labels:cls,
       datasets:[
         {label:'Show Rate %', data:cls.map(c=>pct(s.byCloser[c].as,s.byCloser[c].ag)), backgroundColor:GOLD_P, borderColor:GOLD, borderWidth:1.5},
-        {label:'Close Rate %',data:cls.map(c=>pct(s.byCloser[c].ci,s.byCloser[c].as)), backgroundColor:GREEN_P,borderColor:GREEN,borderWidth:1.5}
+        {label:'Close Rate %',data:cls.map(c=>pct(s.byCloser[c].ci,s.byCloser[c].as)), backgroundColor:GREEN_P,borderColor:GREEN,borderWidth:1.5},
+        // Líneas de meta
+        {label:'Meta Show '+TARGET_SHOW+'%', type:'line',
+         data:cls.map(()=>TARGET_SHOW), borderColor:GOLD, borderWidth:1.5,
+         borderDash:[5,4], pointRadius:0, fill:false, tension:0},
+        {label:'Meta Close '+TARGET_CLOSE+'%', type:'line',
+         data:cls.map(()=>TARGET_CLOSE), borderColor:GREEN, borderWidth:1.5,
+         borderDash:[5,4], pointRadius:0, fill:false, tension:0},
       ]
     },
     options:{responsive:true,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:12,color:'#68655e'}}},
+      plugins:{legend:{position:'bottom',labels:{
+        boxWidth:8, padding:12, color:'#68655e',
+        filter: item => !item.text.startsWith('Meta') // ocultar metas del legend principal
+      }}},
       scales:{y:{grid:{color:'#f0ece4'},ticks:{callback:v=>v+'%'},max:110},x:{grid:{color:'#f0ece4'}}}
     }
   });
+  // Leyenda custom de metas
+  const wrap = document.getElementById('c-rates').closest('.cc');
+  if (wrap && !wrap.querySelector('.target-legend')) {
+    const leg = document.createElement('div');
+    leg.className = 'target-legend';
+    leg.innerHTML =
+      `<div class="target-legend-item"><div class="target-legend-line" style="border-color:${GOLD}"></div>Meta Show Rate ${TARGET_SHOW}%</div>` +
+      `<div class="target-legend-item"><div class="target-legend-line" style="border-color:${GREEN}"></div>Meta Close Rate ${TARGET_CLOSE}%</div>`;
+    wrap.appendChild(leg);
+  }
 }
 
 function renderConfirmer(s) {
@@ -1261,6 +1397,28 @@ function renderBonos(s) {
 }
 
 // ═══════════════════════════════════════════════
+//  CLOSER SEARCH
+// ═══════════════════════════════════════════════
+function filterClosers(q) {
+  const term = q.toLowerCase().trim();
+  document.querySelectorAll('#closer-list .ccard').forEach(card => {
+    const name = card.id.replace('cc-','').toLowerCase();
+    card.style.display = (!term || name.includes(term)) ? '' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORT PDF
+// ═══════════════════════════════════════════════
+function exportPDF() {
+  // Expand all closer cards before printing
+  document.querySelectorAll('.ccard').forEach(c => c.classList.add('open'));
+  window.print();
+  // Restore state after print dialog
+  setTimeout(() => document.querySelectorAll('.ccard').forEach(c => c.classList.remove('open')), 1000);
+}
+
+// ═══════════════════════════════════════════════
 //  INTERACTIONS
 // ═══════════════════════════════════════════════
 function showPage(id, el) {
@@ -1311,29 +1469,63 @@ function toDate(s) {
 }
 function toN(v) { const n=parseFloat(String(v||0).replace(/,/g,'.')); return isNaN(n)?0:n; }
 
-async function loadData() {
+// ── LocalStorage cache (TTL 5 min) ──────────────
+const CACHE_KEY = 'ops_dash_v1';
+const CACHE_TTL = 5 * 60 * 1000;
+function loadCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
+    if (c && (Date.now() - c.ts) < CACHE_TTL) return c.data;
+  } catch(e) {}
+  return null;
+}
+function saveCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch(e) {}
+}
+
+async function loadData(force) {
   document.getElementById('loader').style.display='flex';
   document.getElementById('error-banner').style.display='none';
+
+  let texts = null, fromCache = false;
+
+  // Intentar cache (salvo que sea recarga forzada)
+  if (!force) {
+    texts = loadCache();
+    if (texts) fromCache = true;
+  }
+
+  // Fetch remoto si no hay cache válida
+  if (!texts) {
+    try {
+      texts = await new Promise((resolve, reject) => {
+        const cb = 'cb_' + Date.now();
+        const script = document.createElement('script');
+        const timer = setTimeout(() => {
+          delete window[cb];
+          if(document.head.contains(script)) document.head.removeChild(script);
+          reject(new Error('Timeout'));
+        }, 30000);
+        window[cb] = (data) => {
+          clearTimeout(timer);
+          delete window[cb];
+          if(document.head.contains(script)) document.head.removeChild(script);
+          resolve(data);
+        };
+        script.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo cargar Apps Script')); };
+        script.src = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec?callback=' + cb;
+        document.head.appendChild(script);
+      });
+      saveCache(texts);
+    } catch(err) {
+      document.getElementById('loader').style.display='none';
+      document.getElementById('error-banner').style.display='flex';
+      document.getElementById('error-msg').textContent='Error: '+err.message;
+      return;
+    }
+  }
+
   try {
-    // JSONP — bypasses CORS and Safari restrictions
-    const texts = await new Promise((resolve, reject) => {
-      const cb = 'cb_' + Date.now();
-      const script = document.createElement('script');
-      const timer = setTimeout(() => {
-        delete window[cb];
-        if(document.head.contains(script)) document.head.removeChild(script);
-        reject(new Error('Timeout'));
-      }, 30000);
-      window[cb] = (data) => {
-        clearTimeout(timer);
-        delete window[cb];
-        if(document.head.contains(script)) document.head.removeChild(script);
-        resolve(data);
-      };
-      script.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo cargar Apps Script')); };
-      script.src = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec?callback=' + cb;
-      document.head.appendChild(script);
-    });
 
     function toDateAS(val) {
       if (!val) return null;
@@ -1404,13 +1596,15 @@ async function loadData() {
       document.getElementById('date-to').value=dateTo;
     }
     document.getElementById('loader').style.display='none';
-    document.getElementById('last-updated').textContent='Actualizado: '+new Date().toLocaleDateString('es-CL')+' '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    const now = new Date();
+    const timeStr = now.toLocaleDateString('es-CL')+' '+now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('last-updated').textContent = (fromCache ? '⚡ Caché: ' : 'Actualizado: ') + timeStr;
     buildMonthPresets();
     renderAll();
   } catch(err) {
     document.getElementById('loader').style.display='none';
     document.getElementById('error-banner').style.display='flex';
-    document.getElementById('error-msg').textContent='Error: '+err.message;
+    document.getElementById('error-msg').textContent='Error al procesar datos: '+err.message;
   }
 }
 
