@@ -8,8 +8,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html, body { background:#ffffff; color:#1a1916; font-family:'DM Sans',sans-serif; min-height:100vh; }
+html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',sans-serif; min-height:100vh;
+  transition: background .25s, color .25s; }
 
+/* ══ LIGHT MODE (default) ═══════════════════ */
 :root {
   --white: #ffffff;
   --bg:    #f7f5f0;
@@ -29,9 +31,58 @@ html, body { background:#ffffff; color:#1a1916; font-family:'DM Sans',sans-serif
   --red:  #944030; --red-p:  #f5e8e4;
   --blue: #2a527a; --blue-p: #e3edf5;
 
-  --sh: 0 2px 8px rgba(26,25,22,.07);
+  --sh:  0 2px 8px rgba(26,25,22,.07);
   --sh2: 0 4px 20px rgba(26,25,22,.10);
   --r: 8px; --r2: 12px;
+}
+
+/* ══ DARK MODE ═══════════════════════════════ */
+[data-theme="dark"] {
+  --white:   #141412;
+  --bg:      #1c1b18;
+  --bg2:     #242220;
+  --border:  #2e2c28;
+  --border2: #3a3835;
+
+  --gold:      #c9a84c;
+  --gold-l:    #e0c06a;
+  --gold-pale: #2a2416;
+  --gold-deep: #e0c06a;
+  --gold-grad: linear-gradient(135deg,#e0c06a,#c9a84c);
+
+  --g1:#f0ede6; --g2:#ccc8be; --g3:#9a978f; --g4:#68655e; --g5:#3a3835;
+
+  --green:#5aad7a; --green-p:#0e2318;
+  --red:  #e06650; --red-p:  #2a100a;
+  --blue: #5b8fc4; --blue-p: #0a1828;
+
+  --sh:  0 2px 12px rgba(0,0,0,.35);
+  --sh2: 0 4px 24px rgba(0,0,0,.50);
+}
+
+/* transición suave en todos los elementos clave */
+.header, .kpi, .cc, .ccard, .conf-stat, .strip-item,
+.vtable-wrap, .alert, .closer-search input,
+canvas, .tab, .preset, .date-input, .export-btn,
+.insight-card, .bono-card, .pipe-bar {
+  transition: background .25s, border-color .25s, color .25s, box-shadow .25s;
+}
+
+/* ── DARK MODE TOGGLE ────────────────────── */
+.theme-toggle {
+  width:36px; height:20px; border-radius:10px; border:none; cursor:pointer;
+  position:relative; flex-shrink:0;
+  background:var(--border2); transition: background .25s;
+  outline:none; -webkit-appearance:none;
+}
+.theme-toggle::after {
+  content:''; position:absolute; top:3px; left:3px;
+  width:14px; height:14px; border-radius:50%;
+  background:var(--g3); transition: transform .25s, background .25s;
+}
+[data-theme="dark"] .theme-toggle { background:var(--gold); }
+[data-theme="dark"] .theme-toggle::after {
+  transform:translateX(16px); background:#fff;
 }
 
 /* ── HEADER ───────────────────────────────── */
@@ -144,11 +195,14 @@ html, body { background:#ffffff; color:#1a1916; font-family:'DM Sans',sans-serif
 .strip {
   display:grid; grid-template-columns:repeat(4,1fr);
   background:var(--g1); gap:0;
+  transition: background .25s;
 }
 .strip-item {
   padding:14px 8px; text-align:center;
   border-right:1px solid rgba(255,255,255,.08);
 }
+[data-theme="dark"] .strip { background:#0a0908; }
+[data-theme="dark"] .strip-item { border-right-color:rgba(255,255,255,.05); }
 .strip-item:last-child{border-right:none}
 .strip-val {
   font-family:'Jost',sans-serif; font-weight:700; font-size:1.3rem;
@@ -406,6 +460,7 @@ canvas { max-width:100%; }
     <div class="logo">CONVIERTE <span>OPS</span></div>
     <div style="display:flex;align-items:center;gap:8px;">
       <button class="export-btn" onclick="exportPDF()">⬇ PDF</button>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Alternar modo oscuro/claro" aria-label="Toggle dark mode"></button>
       <div style="text-align:right"><span class="live">EN VIVO</span><div id="last-updated" style="font-size:.52rem;color:var(--g4);margin-top:2px;"></div></div>
     </div>
   </div>
@@ -596,10 +651,14 @@ function pct(a,b) { return b ? Math.round(a/b*100) : 0; }
 const charts = {};
 function destroyChart(id) { if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
 
-Chart.defaults.color = '#9a978f';
-Chart.defaults.borderColor = '#e2ddd4';
+function applyChartTheme() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  Chart.defaults.color       = dark ? '#68655e' : '#9a978f';
+  Chart.defaults.borderColor = dark ? '#2e2c28' : '#e2ddd4';
+}
 Chart.defaults.font.family = "'DM Sans',sans-serif";
 Chart.defaults.font.size = 10;
+applyChartTheme();
 
 const GOLD='#a8832a', GOLD_L='#c9a84c', GOLD_P='rgba(168,131,42,.12)';
 const GREEN='#3d6b50', GREEN_P='rgba(61,107,80,.15)';
@@ -1611,6 +1670,29 @@ async function loadData(force) {
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  DARK MODE
+// ═══════════════════════════════════════════════
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next   = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('ops_theme', next);
+  applyChartTheme();
+  // Redraw charts with new colors
+  if (RAW_MD.length) renderAll();
+}
+
+// Inicializar tema guardado (antes de que carguen los datos, para evitar flash)
+(function initTheme() {
+  const saved = localStorage.getItem('ops_theme');
+  // Detectar preferencia del sistema si no hay guardado
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+  applyChartTheme();
+})();
+
 loadData();
 </script>
 </body>
