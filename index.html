@@ -509,7 +509,7 @@ canvas { max-width:100%; }
     <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div><div id="k-venta-total-delta"></div></div>
     <div class="kpi gn"><div class="kpi-lbl">Ventas Nuevas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">clientes nuevos</div><div id="k-ventas-delta"></div></div>
     <div class="kpi bl"><div class="kpi-lbl">Renovaciones</div><div class="kpi-val" id="k-renov">—</div><div class="kpi-sub" id="k-renov-sub">clientes activos</div><div id="k-renov-delta"></div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">leads totales</div><div id="k-agendas-delta"></div></div>
+    <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">confirmados CC</div><div id="k-agendas-delta"></div></div>
     <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div><div id="k-show-delta"></div></div>
     <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div><div id="k-close-delta"></div></div>
     <div class="kpi gy"><div class="kpi-lbl">Ticket Prom.</div><div class="kpi-val" id="k-ticket">—</div><div class="kpi-sub">USD / venta</div><div id="k-ticket-delta"></div></div>
@@ -679,15 +679,16 @@ function computePrevStats() {
   const pTo   = prevTo.toISOString().slice(0,10);
   const inP   = d => d && d >= pFrom && d <= pTo;
 
-  const NO_ASISTE = ['no asiste','cancelada','cancelado'];
+  const NO_ASISTE = ['no asiste','no show','cancelada','cancelado'];
   const md  = RAW_MD.filter(r => inP(r.Fecha));
   const v   = RAW_V.filter(r  => inP(r['Fecha Cierre']));
   const co  = RAW_C.filter(r  => inP(r.Fecha));
   const clF = RAW_CL.filter(r => inP(r.Fecha));
+  const ccF = RAW_CC.filter(r => inP(r.Fecha));
 
-  const totAg  = md.reduce((s,r)=>s+r.Agendas,0);
-  const totAs  = clF.length ? clF.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length
-                             : md.reduce((s,r)=>s+r.Asistencias,0);
+  // Agendas = confirmados por Call Confirmer; Asistencias = CLOSER_LOG sin no-shows
+  const totAg  = ccF.filter(r=>r.Estado==='Confirmado').length;
+  const totAs  = clF.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length;
   const totCash   = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta  = v.reduce((s,r)=>s+r.Venta,0);
   const vNuevas   = v.filter(r=>!r.Tipo.toLowerCase().includes('renov'));
@@ -727,10 +728,12 @@ function computeStats() {
   const v  = RAW_V.filter(r  => inRange(r['Fecha Cierre']));
   const co = RAW_C.filter(r  => inRange(r.Fecha));
 
-  const NO_ASISTE=['no asiste','cancelada','cancelado'];
+  const NO_ASISTE=['no asiste','no show','cancelada','cancelado'];
   const clFilt=RAW_CL.filter(r=>inRange(r.Fecha));
-  const totAg=md.reduce((s,r)=>s+r.Agendas,0);
-  const totAs=clFilt.length?clFilt.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length:md.reduce((s,r)=>s+r.Asistencias,0);
+  // Agendas = confirmados por Call Confirmer en el período
+  const totAg=cc.filter(r=>r.Estado==='Confirmado').length;
+  // Asistencias = CLOSER_LOG excluyendo no-shows y cancelaciones
+  const totAs=clFilt.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length;
   const totCi=md.reduce((s,r)=>s+r.Cierres,0);
   const totCash = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
@@ -750,9 +753,10 @@ function computeStats() {
     const coRows=co.filter(r=>r.Closer===c);
     const vRows=v.filter(r=>r.Closer===c);
     const clRows=clFilt.filter(r=>r.Closer===c);
+    const ccRows=cc.filter(r=>r.Closer===c&&r.Estado==='Confirmado');
     byCloser[c]={
-      ag:rows.reduce((s,r)=>s+r.Agendas,0),
-      as:clRows.length?clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length:rows.reduce((s,r)=>s+r.Asistencias,0),
+      ag:ccRows.length,
+      as:clRows.filter(r=>!NO_ASISTE.includes(r.Evento.toLowerCase())).length,
       ci:rows.reduce((s,r)=>s+r.Cierres,0),
       se:rows.reduce((s,r)=>s+r.Seguimientos,0),
       cash:coRows.reduce((s,r)=>s+r.Monto,0),
@@ -845,7 +849,7 @@ function renderKPIs(s) {
   document.getElementById('k-renov-sub').textContent  = s.totRenov+' contrato'+(s.totRenov!==1?'s':'');
   document.getElementById('k-agendas').textContent = s.totAg;
   document.getElementById('k-show').textContent    = sr+'%';
-  document.getElementById('k-show-sub').textContent = s.totAs+'/'+s.totAg+' asist.';
+  document.getElementById('k-show-sub').textContent = s.totAs+'/'+s.totAg+' asist. / conf.';
   document.getElementById('k-close').textContent   = cr+'%';
   document.getElementById('k-close-sub').textContent = s.totNuevas+'/'+s.totAs+' nuevas';
   document.getElementById('k-ticket').textContent  = fmtMoney(ticket);
