@@ -7,6 +7,9 @@ let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
 //  FILTERS
 // ═══════════════════════════════════════════════
 let dateFrom='', dateTo='';
+// true cuando el usuario fija un rango explícito (preset o inputs). Mientras sea
+// false, el rango sigue al máximo de los datos en cada carga/revalidación SWR.
+let userFiltered=false;
 
 let FIXED_PRESETS = null; // botones fijos (Todo, 7d) capturados en el primer render
 
@@ -37,11 +40,14 @@ function setPreset(p) {
   document.getElementById('date-from').value=dateFrom;
   document.getElementById('date-to').value=dateTo;
   applyFilter();
+  // "Todo" = seguir el rango completo: reanudar auto-seguimiento en revalidaciones
+  if (p === 'all') userFiltered = false;
 }
 
 function applyFilter() {
   dateFrom = document.getElementById('date-from').value;
   dateTo   = document.getElementById('date-to').value;
+  userFiltered = true;  // el usuario fijó un rango: dejar de auto-seguir los datos
   renderAll();
 }
 
@@ -1094,8 +1100,9 @@ function ingest(texts, fromCache) {
       })).filter(r => r.FechaVenc && r.Monto > 0);
 
     const allDates=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
-    // Respetar el filtro elegido por el usuario al revalidar en background
-    if(allDates.length && !dateFrom) {
+    // Si el usuario no fijó un rango, seguir el máximo de los datos (extiende a
+    // los días nuevos que llegan en la revalidación SWR). Si filtró, se respeta.
+    if(allDates.length && !userFiltered) {
       dateFrom=allDates[0]; dateTo=allDates[allDates.length-1];
       document.getElementById('date-from').value=dateFrom;
       document.getElementById('date-to').value=dateTo;
