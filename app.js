@@ -11,6 +11,12 @@ let dateFrom='', dateTo='';
 // false, el rango sigue al máximo de los datos en cada carga/revalidación SWR.
 let userFiltered=false;
 
+// ═══════════════════════════════════════════════
+//  AUTH — la contraseña NO vive en el código: el usuario la escribe y se manda
+//  como token al Apps Script, que la valida server-side antes de devolver datos.
+// ═══════════════════════════════════════════════
+let authUser=null, authToken=null;
+
 let FIXED_PRESETS = null; // botones fijos (Todo, 7d) capturados en el primer render
 
 function buildMonthPresets() {
@@ -992,10 +998,13 @@ function fetchRemote() {
       clearTimeout(timer);
       delete window[cb];
       if(document.head.contains(script)) document.head.removeChild(script);
+      // El Apps Script responde {error:...} cuando el token es inválido o falta
+      if (data && data.error) { reject(new Error('AUTH')); return; }
       resolve(data);
     };
     script.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo cargar Apps Script')); };
-    script.src = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec?callback=' + cb;
+    const auth = '&user=' + encodeURIComponent(authUser||'') + '&token=' + encodeURIComponent(authToken||'');
+    script.src = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec?callback=' + cb + auth;
     document.head.appendChild(script);
   });
 }
@@ -1146,4 +1155,47 @@ function toggleTheme() {
   applyChartTheme();
 })();
 
-loadData();
+// ═══════════════════════════════════════════════
+//  AUTH FLOW
+// ═══════════════════════════════════════════════
+async function doLogin(e) {
+  e.preventDefault();
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  authUser = u; authToken = p;
+  btn.disabled = true; btn.textContent = 'Verificando…'; err.textContent = '';
+  try {
+    const texts = await fetchRemote();        // valida credenciales contra el Apps Script
+    sessionStorage.setItem('ops_auth', JSON.stringify({u, p}));
+    saveCache(texts);
+    document.getElementById('login-gate').style.display = 'none';
+    ingest(texts, false);
+  } catch (ex) {
+    authUser = null; authToken = null;
+    err.textContent = ex.message === 'AUTH'
+      ? 'Usuario o contraseña incorrectos'
+      : 'Error de conexión: ' + ex.message;
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+  return false;
+}
+
+function logout() {
+  sessionStorage.removeItem('ops_auth');
+  location.reload();
+}
+
+// Bootstrap: si hay sesión activa, entrar directo; si no, mostrar el gate.
+(function initAuth() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem('ops_auth') || 'null'); } catch (e) {}
+  if (saved && saved.p) {
+    authUser = saved.u; authToken = saved.p;
+    document.getElementById('login-gate').style.display = 'none';
+    loadData();   // usa caché + revalida con el token de sesión
+  } else {
+    document.getElementById('login-user').focus();
+  }
+})();
