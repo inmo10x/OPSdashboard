@@ -62,7 +62,6 @@
     <button class="tab" role="tab" aria-selected="false" aria-controls="page-closers"   onclick="showPage('closers',this)">Closers</button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="page-confirmer" onclick="showPage('confirmer',this)">Confirmer</button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="page-ventas"    onclick="showPage('ventas',this)">Ventas</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="page-insights"  onclick="showPage('insights',this)">Insights</button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="page-bonos"     onclick="showPage('bonos',this)">Bonos</button>
   </div>
 </div>
@@ -114,6 +113,8 @@
   </div>
   <div class="divider"></div>
   <div style="height:12px"></div>
+  <div class="cc"><h3>Ventas por Closer</h3><div class="cc-sub">USD · Nuevas vs Renovaciones</div><canvas id="c-ventas-closer" height="200"></canvas></div>
+  <div class="cc"><h3>Contribución al Revenue</h3><div class="cc-sub">% del cash cobrado por closer</div><canvas id="c-revenue-share" height="200"></canvas></div>
   <div class="cc"><h3>Show Rate vs Close Rate</h3><div class="cc-sub">% comparado por closer</div><canvas id="c-rates" height="200"></canvas></div>
 </div>
 
@@ -139,12 +140,6 @@
   <div class="divider"></div>
   <div class="sec"><div class="sec-ico">💼</div><span class="sec-title">Comisiones del Período</span></div>
   <div id="comisiones-wrap" style="padding:0 16px 16px;"></div>
-</div>
-
-<!-- ═══════════════ PAGE: INSIGHTS ═══════════════ -->
-<div id="page-insights" class="page">
-  <div class="sec"><div class="sec-ico">💡</div><span class="sec-title">Insights Estratégicos</span></div>
-  <div class="insight-list" id="insight-list"><!-- JS --></div>
 </div>
 
 <!-- ═══════════════ PAGE: BONOS ═══════════════ -->

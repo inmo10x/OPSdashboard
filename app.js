@@ -263,9 +263,10 @@ function renderAll() {
   renderCashChart(s);
   renderFunnelChart(s);
   renderClosers(s);
+  renderVentasPorCloser(s);
+  renderRevenueShare(s);
   renderRatesChart(s);
   renderConfirmer(s);
-  renderInsights(s);
   if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
   if(document.getElementById('page-bonos').classList.contains('active')) renderBonos(s);
 }
@@ -287,7 +288,7 @@ function renderStrip(s) {
 
 function renderKPIs(s) {
   const sr = pct(s.totAs,s.totAg), cr = pct(s.totNuevas,s.totAs);
-  const ticket = s.v.length ? Math.round(s.totVenta/s.v.length) : 0;
+  const ticket = s.ticket;  // ya calculado en computeCoreStats
   const p = computePrevStats();
 
   document.getElementById('k-cash').textContent         = fmtMoney(s.totCash);
@@ -465,6 +466,10 @@ function renderClosers(s) {
     </div>`;
   });
   document.getElementById('closer-list').innerHTML = html || '<div class="no-data"><span>🔍</span>Sin datos en este período</div>';
+  // Reaplicar el filtro activo si el usuario tenía una búsqueda escrita
+  // (la lista se reconstruye en cada render, incl. revalidación en background)
+  const sf = document.getElementById('closer-search-input');
+  if (sf && sf.value) filterClosers(sf.value);
 }
 
 const TARGET_SHOW  = 70;  // Meta Show Rate %
@@ -506,6 +511,72 @@ function renderRatesChart(s) {
       `<div class="target-legend-item"><div class="target-legend-line" style="border-color:${GREEN}"></div>Meta Close Rate ${TARGET_CLOSE}%</div>`;
     wrap.appendChild(leg);
   }
+}
+
+// Ventas por closer: barras apiladas Nuevas vs Renovaciones (USD vendidos)
+function renderVentasPorCloser(s) {
+  // $ vendido por closer separado por tipo, ordenado de mayor a menor total
+  const porCloser = {};
+  s.v.forEach(r => {
+    if (!r.Closer) return;
+    if (!porCloser[r.Closer]) porCloser[r.Closer] = { nuevas:0, renov:0 };
+    porCloser[r.Closer][esRenov(r) ? 'renov' : 'nuevas'] += r.Venta;
+  });
+  const cls = Object.keys(porCloser)
+    .filter(c => porCloser[c].nuevas + porCloser[c].renov > 0)
+    .sort((a,b) => (porCloser[b].nuevas+porCloser[b].renov) - (porCloser[a].nuevas+porCloser[a].renov));
+
+  upsertChart('ventasCloser', 'c-ventas-closer', {
+    type:'bar',
+    data:{
+      labels: cls,
+      datasets:[
+        {label:'Nuevas',       data:cls.map(c=>Math.round(porCloser[c].nuevas)), backgroundColor:'rgba(61,107,80,.75)',  borderColor:GREEN, borderWidth:1, borderRadius:3},
+        {label:'Renovaciones', data:cls.map(c=>Math.round(porCloser[c].renov)),  backgroundColor:'rgba(42,82,122,.75)', borderColor:BLUE,  borderWidth:1, borderRadius:3},
+      ]
+    },
+    options:{ responsive:true,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:10,padding:12,color:legendCol()}},
+        tooltip:{callbacks:{label: ctx => ' '+ctx.dataset.label+': $'+(ctx.parsed.y/1000).toFixed(1)+'K'}}
+      },
+      scales:{
+        x:{stacked:true, grid:{color:gridCol()}},
+        y:{stacked:true, grid:{color:gridCol()}, ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}}
+      }
+    }
+  });
+}
+
+// Contribución al revenue: dona con el % del cash cobrado por cada closer
+function renderRevenueShare(s) {
+  const cls = s.closers.filter(c => (s.byCloser[c].cash||0) > 0)
+                        .sort((a,b)=> s.byCloser[b].cash - s.byCloser[a].cash);
+  const tot = cls.reduce((t,c)=>t+s.byCloser[c].cash,0);
+  const palette  = [GOLD, GREEN, BLUE, '#7c5cbf', GY, '#b5793f'];
+  const paletteP = ['rgba(168,131,42,.8)','rgba(61,107,80,.8)','rgba(42,82,122,.8)','rgba(124,92,191,.8)','rgba(154,151,143,.8)','rgba(181,121,63,.8)'];
+
+  upsertChart('revenueShare', 'c-revenue-share', {
+    type:'doughnut',
+    data:{
+      labels: cls,
+      datasets:[{
+        data: cls.map(c=>Math.round(s.byCloser[c].cash)),
+        backgroundColor: cls.map((_,i)=>paletteP[i % paletteP.length]),
+        borderColor:     cls.map((_,i)=>palette[i % palette.length]),
+        borderWidth:2
+      }]
+    },
+    options:{ responsive:true, cutout:'58%',
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:10,padding:12,color:legendCol()}},
+        tooltip:{callbacks:{label: ctx => {
+          const v = ctx.parsed, p = tot ? Math.round(v/tot*100) : 0;
+          return ' '+ctx.label+': $'+(v/1000).toFixed(1)+'K ('+p+'%)';
+        }}}
+      }
+    }
+  });
 }
 
 function renderConfirmer(s) {
@@ -724,48 +795,6 @@ function renderTipo(s) {
       +'<div class="kpi-sub">'+p+'% del cash</div>'
     +'</div>';
   }).join('');
-}
-
-function renderInsights(s) {
-  const sr = pct(s.totAs,s.totAg), cr = pct(s.totNuevas,s.totAs);
-  const I = s.byCloser['Ignacio']||{};
-  const Se = s.byCloser['Sebastian']||{};
-  const Ka = s.byCloser['Karim']||{};
-  const cashShare = s.totCash>0 ? Math.round(I.cash/s.totCash*100) : 0;
-
-  const items = [];
-
-  if(I.ci>0) items.push({ico:'✅',bg:'var(--gold-pale)',tc:'var(--gold-deep)',title:'Fortaleza · Ignacio',
-    text:`Ignacio genera el <strong>${cashShare}%</strong> del revenue (${fmtMoney(I.cash)} de ${fmtMoney(s.totCash)} cobrados) con <strong>${I.ci}</strong> cierres en el período. Motor del equipo.`});
-
-  if(Se.as>3 && Se.ci===0) items.push({ico:'🚨',bg:'var(--red-p)',tc:'var(--red)',title:'Alerta · Sebastian',
-    text:`Show rate <strong>${pct(Se.as,Se.ag)}%</strong> con <strong>0 cierres</strong> en ${Se.as} asistencias. El problema está en la conversión, no en la convocatoria. Auditar pitch y manejo de objeciones.`});
-
-  if(s.totPdte>0) items.push({ico:'⚠️',bg:'var(--red-p)',tc:'var(--red)',title:'CxC Pendientes',
-    text:`<strong>${fmtMoney(s.totPdte)}</strong> en cuentas por cobrar (${pct(s.totPdte,s.totVenta)}% del revenue). Revisar plan de cuotas y vencimientos próximos.`});
-
-  const wks=Object.keys(s.weekCash).sort();
-  if(wks.length>1){
-    const lastW=wks[wks.length-1], prevW=wks[wks.length-2];
-    const diff=s.weekCash[lastW]-s.weekCash[prevW];
-    if(diff>0) items.push({ico:'📈',bg:'var(--gold-pale)',tc:'var(--gold-deep)',title:'Tendencia al Alza',
-      text:`La semana del <strong>${fmtDate(lastW)}</strong> es la mejor del período con <strong>${fmtMoney(s.weekCash[lastW])}</strong>. Incremento de ${fmtMoney(diff)} vs semana anterior.`});
-  }
-
-  if(s.confCanc>5) items.push({ico:'💡',bg:'var(--green-p)',tc:'var(--green)',title:'Oportunidad · Confirmer',
-    text:`Hay <strong>${s.confCanc} leads cancelados</strong> en el período seleccionado. Son prospectos que ya mostraron interés y son candidatos para reactivación.`});
-
-  if(Ka.as>0 && Ka.ci>=0) items.push({ico:'🔧',bg:'var(--blue-p)',tc:'var(--blue)',title:'Escalar Karim',
-    text:`Karim logró <strong>${pct(Ka.ci,Ka.as)}% close rate</strong> con ${Ka.as} asistencias. Aumentar volumen de agendas es la palanca principal para multiplicar resultados.`});
-
-  document.getElementById('insight-list').innerHTML = items.map(i=>`
-    <div class="insight">
-      <div class="ins-ico" style="background:${i.bg}">${i.ico}</div>
-      <div>
-        <div class="ins-title" style="color:${i.tc}">${i.title}</div>
-        <div class="ins-text">${i.text}</div>
-      </div>
-    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════
@@ -1016,8 +1045,8 @@ async function loadData(force) {
   const isFresh = entry && (Date.now() - entry.ts) < CACHE_TTL;
 
   if (entry) {
-    // Render inmediato desde cache (aunque esté vencido)
-    ingest(entry.data, true);
+    // Render inmediato desde cache (aunque esté vencido); muestra su hora real
+    ingest(entry.data, true, entry.ts);
     if (isFresh) return;
     // Cache vencido → revalidar en background, sin loader
     try {
@@ -1043,7 +1072,7 @@ async function loadData(force) {
   ingest(texts, false);
 }
 
-function ingest(texts, fromCache) {
+function ingest(texts, fromCache, cacheTs) {
   try {
 
     function toDateAS(val) {
@@ -1117,8 +1146,9 @@ function ingest(texts, fromCache) {
       document.getElementById('date-to').value=dateTo;
     }
     document.getElementById('loader').style.display='none';
-    const now = new Date();
-    const timeStr = now.toLocaleDateString('es-CL')+' '+now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    // Si viene de caché, mostrar la hora real en que se guardó (no la actual)
+    const stamp = (fromCache && cacheTs) ? new Date(cacheTs) : new Date();
+    const timeStr = stamp.toLocaleDateString('es-CL')+' '+stamp.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('last-updated').textContent = (fromCache ? '⚡ Caché: ' : 'Actualizado: ') + timeStr;
     buildMonthPresets();
     renderAll();

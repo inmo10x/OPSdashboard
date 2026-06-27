@@ -55,7 +55,7 @@ html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',san
 .header, .kpi, .cc, .ccard, .conf-stat, .strip-item,
 .vtable-wrap, .alert, .closer-search input,
 canvas, .tab, .preset, .date-input, .export-btn,
-.insight-card, .bono-card, .pipe-bar {
+.bono-card, .pipe-bar {
   transition: background .25s, border-color .25s, color .25s, box-shadow .25s;
 }
 
@@ -365,15 +365,6 @@ canvas { max-width:100%; }
 .fc-fill  { height:100%; border-radius:4px; background:var(--gold-grad); }
 .fc-amt   { width:64px; text-align:right; font-family:'Jost',sans-serif; font-weight:700; font-size:.88rem; color:var(--gold-deep); flex-shrink:0; }
 
-/* ── INSIGHTS ───────────────────────────────── */
-.insight-list { padding:0 16px; display:flex; flex-direction:column; gap:10px; }
-.insight {
-  background:var(--white); border:1px solid var(--border); border-radius:var(--r);
-  padding:14px; box-shadow:var(--sh); display:flex; gap:12px;
-}
-.ins-ico { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.9rem; flex-shrink:0; }
-.ins-title { font-size:.58rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px; }
-.ins-text  { font-size:.68rem; line-height:1.55; color:var(--g2); }
 
 /* ── DIVIDER ────────────────────────────────── */
 .divider { height:1px; background:var(--border); margin:20px 16px 0; }
