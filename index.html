@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <!-- ?v= — bump en cada deploy para invalidar caché del navegador -->
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 
@@ -33,6 +33,23 @@
   <span id="error-msg" style="font-size:.7rem;color:#944030;flex:1;"></span>
   <button onclick="loadData()" style="background:#944030;color:#fff;border:none;padding:5px 12px;font-size:.65rem;border-radius:4px;cursor:pointer;">Reintentar</button>
 </div>
+<div class="shell">
+
+<!-- SIDEBAR (desktop) -->
+<aside class="sidebar">
+  <div class="sb-logo">CONVIERTE <span>OPS</span></div>
+  <nav class="sb-nav" aria-label="Navegación principal">
+    <button class="sb-item active" data-page="overview"  onclick="showPage('overview',this)"><span class="sb-ico">🏠</span>Visión general</button>
+    <button class="sb-item" data-page="closers"   onclick="showPage('closers',this)"><span class="sb-ico">👤</span>Closers</button>
+    <button class="sb-item" data-page="confirmer" onclick="showPage('confirmer',this)"><span class="sb-ico">📞</span>Confirmer</button>
+    <button class="sb-item" data-page="ventas"    onclick="showPage('ventas',this)"><span class="sb-ico">💰</span>Ventas</button>
+    <button class="sb-item" data-page="bonos"     onclick="showPage('bonos',this)"><span class="sb-ico">🏆</span>Bonos</button>
+  </nav>
+  <div class="sb-foot">Agencia Convierte SPA</div>
+</aside>
+
+<div class="main">
+
 <div class="header">
   <div class="header-top">
     <div class="logo">CONVIERTE <span>OPS</span></div>
@@ -57,13 +74,13 @@
     <button class="apply-btn" onclick="applyFilter()">Aplicar</button><button class="apply-btn" style="background:var(--g2);margin-left:4px;" title="Forzar recarga" onclick="loadData(true)">↻</button>
   </div>
 
-  <!-- NAV TABS -->
+  <!-- NAV TABS (móvil) -->
   <div class="nav-tabs" role="tablist" aria-label="Secciones del dashboard">
-    <button class="tab active" role="tab" aria-selected="true"  aria-controls="page-general"   onclick="showPage('general',this)">General</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="page-closers"   onclick="showPage('closers',this)">Closers</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="page-confirmer" onclick="showPage('confirmer',this)">Confirmer</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="page-ventas"    onclick="showPage('ventas',this)">Ventas</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="page-bonos"     onclick="showPage('bonos',this)">Bonos</button>
+    <button class="tab active" role="tab" aria-selected="true"  data-page="overview"  aria-controls="page-overview"  onclick="showPage('overview',this)">Visión</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="closers"   aria-controls="page-closers"   onclick="showPage('closers',this)">Closers</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="confirmer" aria-controls="page-confirmer" onclick="showPage('confirmer',this)">Confirmer</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="ventas"    aria-controls="page-ventas"    onclick="showPage('ventas',this)">Ventas</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="bonos"     aria-controls="page-bonos"     onclick="showPage('bonos',this)">Bonos</button>
   </div>
 </div>
 
@@ -75,32 +92,84 @@
   <div class="strip-item"><div class="strip-val" id="s-show">—</div><div class="strip-lbl">Show Rate</div></div>
 </div>
 
-<!-- ═══════════════ PAGE: GENERAL ═══════════════ -->
-<div id="page-general" class="page active">
-  <div class="sec">
-    <div class="sec-ico">📊</div>
-    <span class="sec-title">KPIs Globales</span>
-    <span class="sec-sub" id="range-label">Feb–Mar 2026</span>
-  </div>
-  <div class="kpi-row" id="kpi-row">
-    <div class="kpi g"><div class="kpi-lbl">Cash Cobrado</div><div class="kpi-val" id="k-cash">—</div><div class="kpi-sub">USD período</div><div id="k-cash-delta"></div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Venta Total</div><div class="kpi-val" id="k-venta-total">—</div><div class="kpi-sub" id="k-venta-total-sub">contratos</div><div id="k-venta-total-delta"></div></div>
-    <div class="kpi gn"><div class="kpi-lbl">Ventas Nuevas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">clientes nuevos</div><div id="k-ventas-delta"></div></div>
-    <div class="kpi bl"><div class="kpi-lbl">Renovaciones</div><div class="kpi-val" id="k-renov">—</div><div class="kpi-sub" id="k-renov-sub">clientes activos</div><div id="k-renov-delta"></div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">confirmados CC</div><div id="k-agendas-delta"></div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div><div id="k-show-delta"></div></div>
-    <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div><div id="k-close-delta"></div></div>
-    <div class="kpi gy"><div class="kpi-lbl">Ticket Prom.</div><div class="kpi-val" id="k-ticket">—</div><div class="kpi-sub">USD / venta</div><div id="k-ticket-delta"></div></div>
-  </div>
+<!-- ═══════════════ PAGE: VISIÓN GENERAL ═══════════════ -->
+<div id="page-overview" class="page active">
+  <div class="ov-wrap">
 
-  <div class="divider"></div>
-  <div class="sec"><div class="sec-ico">💸</div><span class="sec-title">Origen del Cash</span><span class="sec-sub">Por tipo de cobro</span></div>
-  <div class="kpi-row" id="tipo-row"></div>
+    <div class="sec" style="padding:4px 0 0;">
+      <div class="sec-ico">🏠</div>
+      <span class="sec-title">Visión general</span>
+      <span class="sec-sub" id="range-label">—</span>
+    </div>
 
-  <div class="divider"></div>
-  <div class="sec"><div class="sec-ico">📈</div><span class="sec-title">Cash Semanal</span></div>
-  <div class="cc"><h3>Evolución de Cobros</h3><div class="cc-sub">USD · Semana a semana</div><canvas id="c-cash" height="180"></canvas></div>
-  <div class="cc"><h3>Embudo por Closer</h3><div class="cc-sub">Agendas → Asistencias → Cierres</div><canvas id="c-funnel" height="180"></canvas></div>
+    <!-- KPI cards con sparkline (estilo muestra) -->
+    <div class="ov-kpis" id="ov-kpis"><!-- JS --></div>
+
+    <!-- Ranking + Meta vs Realizado -->
+    <div class="ov-row r-5-7">
+      <div class="ov-card">
+        <h3>Ranking de closers</h3>
+        <table class="rk-table">
+          <thead><tr><th>#</th><th>Closer</th><th>Cash</th><th>% del total</th></tr></thead>
+          <tbody id="rk-body"><!-- JS --></tbody>
+        </table>
+      </div>
+      <div class="ov-card">
+        <h3>Meta vs. realizado</h3>
+        <canvas id="c-meta" height="170"></canvas>
+      </div>
+    </div>
+
+    <!-- Ticket en el tiempo + Programas campeones -->
+    <div class="ov-row r-7-5">
+      <div class="ov-card">
+        <h3>Ticket promedio a lo largo del tiempo</h3>
+        <canvas id="c-ticket-time" height="150"></canvas>
+      </div>
+      <div class="ov-card">
+        <h3>Programas campeones</h3>
+        <table class="pc-table">
+          <thead><tr><th>Programa</th><th>Ventas</th><th>Facturación</th></tr></thead>
+          <tbody id="pc-body"><!-- JS --></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Origen del cash + Origen de las ventas -->
+    <div class="ov-row r-7-5">
+      <div class="ov-card">
+        <h3>Origen del cash <span style="font-weight:400;font-size:.62rem;color:var(--g4);">· por tipo de cobro</span></h3>
+        <div class="kpi-row" id="tipo-row" style="padding:0;"></div>
+      </div>
+      <div class="ov-card">
+        <h3>Origen de las ventas</h3>
+        <div class="ov-mini" id="ventas-origen"><!-- JS --></div>
+      </div>
+    </div>
+
+    <!-- Métricas de conversión (embudo) -->
+    <div class="sec" style="padding:8px 0 0;"><div class="sec-ico">📊</div><span class="sec-title">Métricas de conversión</span></div>
+    <div class="kpi-row" id="kpi-row" style="padding:0;">
+      <div class="kpi gy"><div class="kpi-lbl">Agendas</div><div class="kpi-val" id="k-agendas">—</div><div class="kpi-sub">confirmados CC</div><div id="k-agendas-delta"></div></div>
+      <div class="kpi gy"><div class="kpi-lbl">Show Rate</div><div class="kpi-val" id="k-show">—</div><div class="kpi-sub" id="k-show-sub">asistencias</div><div id="k-show-delta"></div></div>
+      <div class="kpi g"><div class="kpi-lbl">Close Rate</div><div class="kpi-val" id="k-close">—</div><div class="kpi-sub" id="k-close-sub">cierres</div><div id="k-close-delta"></div></div>
+      <div class="kpi gn"><div class="kpi-lbl">Ventas Nuevas</div><div class="kpi-val" id="k-ventas">—</div><div class="kpi-sub" id="k-ventas-sub">clientes nuevos</div><div id="k-ventas-delta"></div></div>
+      <div class="kpi bl"><div class="kpi-lbl">Renovaciones</div><div class="kpi-val" id="k-renov">—</div><div class="kpi-sub" id="k-renov-sub">clientes activos</div><div id="k-renov-delta"></div></div>
+    </div>
+
+    <!-- Actividad semanal -->
+    <div class="ov-row r-7-5">
+      <div class="ov-card">
+        <h3>Evolución de cobros <span style="font-weight:400;font-size:.62rem;color:var(--g4);">· USD semana a semana</span></h3>
+        <canvas id="c-cash" height="170"></canvas>
+      </div>
+      <div class="ov-card">
+        <h3>Embudo por closer <span style="font-weight:400;font-size:.62rem;color:var(--g4);">· agendas → asist. → cierres</span></h3>
+        <canvas id="c-funnel" height="170"></canvas>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- ═══════════════ PAGE: CLOSERS ═══════════════ -->
@@ -157,6 +226,9 @@
   <div id="bonos-list"><!-- JS --></div>
 </div>
 
-<script src="app.js?v=6"></script>
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<script src="app.js?v=7"></script>
 </body>
 </html>

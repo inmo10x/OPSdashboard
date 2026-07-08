@@ -1,4 +1,10 @@
 // ═══════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════
+// Meta mensual de cash del equipo (USD) — para "Meta vs. realizado"
+const META_MENSUAL_USD = 40000;
+
+// ═══════════════════════════════════════════════
 //  RAW DATA
 // ═══════════════════════════════════════════════
 let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
@@ -163,9 +169,12 @@ function computeCoreStats(inRangeFn) {
   const vNuevas  = v.filter(r=>!esRenov(r));
   const vRenov   = v.filter(esRenov);
   const ticket   = v.length ? Math.round(totVenta / v.length) : 0;
+  // AOV = venta total / clientes únicos (un cliente puede tener varios contratos)
+  const nClientes = new Set(v.map(r=>r.Cliente)).size;
+  const aov = nClientes ? Math.round(totVenta / nClientes) : 0;
 
   return { md, cc, v, co, cl,
-           totAg, totAs, totCash, totVenta, ticket,
+           totAg, totAs, totCash, totVenta, ticket, aov, nClientes,
            vNuevas, vRenov, totNuevas: vNuevas.length, totRenov: vRenov.length };
 }
 
@@ -281,6 +290,7 @@ function computeStats() {
 function renderAll() {
   const s = computeStats();
   renderStrip(s);
+  renderOverview(s);
   renderKPIs(s);
   renderRangeLabel();
   renderTipo(s);
@@ -310,14 +320,11 @@ function renderStrip(s) {
   document.getElementById('s-show').textContent    = showRate+'%';
 }
 
+// Métricas de conversión (fila de embudo en Visión General)
 function renderKPIs(s) {
   const sr = pct(s.totAs,s.totAg), cr = pct(s.totNuevas,s.totAs);
-  const ticket = s.ticket;  // ya calculado en computeCoreStats
   const p = computePrevStats();
 
-  document.getElementById('k-cash').textContent         = fmtMoney(s.totCash);
-  document.getElementById('k-venta-total').textContent     = fmtMoney(s.totVenta);
-  document.getElementById('k-venta-total-sub').textContent = s.v.length+' contratos';
   document.getElementById('k-ventas').textContent     = s.totNuevas;
   document.getElementById('k-ventas-sub').textContent = s.totNuevas+' contrato'+(s.totNuevas!==1?'s':'');
   document.getElementById('k-renov').textContent      = s.totRenov;
@@ -327,19 +334,180 @@ function renderKPIs(s) {
   document.getElementById('k-show-sub').textContent = s.totAs+'/'+s.totAg+' asist. / conf.';
   document.getElementById('k-close').textContent   = cr+'%';
   document.getElementById('k-close-sub').textContent = s.totNuevas+'/'+s.totAs+' nuevas';
-  document.getElementById('k-ticket').textContent  = fmtMoney(ticket);
 
   // Deltas vs período anterior
   if (p) {
-    document.getElementById('k-cash-delta').innerHTML       = delta(s.totCash,   p.totCash);
-    document.getElementById('k-venta-total-delta').innerHTML= delta(s.totVenta,  p.totVenta);
     document.getElementById('k-ventas-delta').innerHTML     = delta(s.totNuevas, p.totNuevas);
     document.getElementById('k-renov-delta').innerHTML      = delta(s.totRenov,  p.totRenov);
     document.getElementById('k-agendas-delta').innerHTML    = delta(s.totAg,     p.totAg);
     document.getElementById('k-show-delta').innerHTML       = deltaP(sr,         p.sr);
     document.getElementById('k-close-delta').innerHTML      = deltaP(cr,         p.cr);
-    document.getElementById('k-ticket-delta').innerHTML     = delta(ticket,      p.ticket);
   }
+}
+
+// ═══════════════════════════════════════════════
+//  VISIÓN GENERAL (estilo muestra)
+// ═══════════════════════════════════════════════
+
+// Sparkline SVG a partir de una serie numérica (sin Chart.js: más liviano)
+function sparklineSVG(values) {
+  if (!values || values.length < 2) return '<svg class="ov-spark"></svg>';
+  const W = 200, H = 36, PAD = 2;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = (max - min) || 1;
+  const pts = values.map((v, i) => {
+    const x = PAD + i * (W - 2*PAD) / (values.length - 1);
+    const y = H - PAD - (v - min) * (H - 2*PAD) / span;
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  });
+  const fill = 'M' + pts[0] + ' L' + pts.slice(1).join(' L') + ` L${W-PAD},${H} L${PAD},${H} Z`;
+  return `<svg class="ov-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`
+    + `<path class="spark-fill" d="${fill}"></path>`
+    + `<polyline points="${pts.join(' ')}"></polyline></svg>`;
+}
+
+// Serie semanal a partir de filas {campoFecha, valor}
+function weeklySeries(rows, fechaKey, valFn) {
+  const byW = {};
+  rows.forEach(r => {
+    const d = r[fechaKey];
+    if (!d) return;
+    const w = weekOf(d);
+    byW[w] = (byW[w]||0) + valFn(r);
+  });
+  return Object.keys(byW).sort().map(w => byW[w]);
+}
+
+function renderOverview(s) {
+  const p = computePrevStats();
+
+  // ── KPI cards con sparkline ─────────────────
+  const wCash    = weeklySeries(s.co, 'Fecha', r=>r.Monto);
+  const wVenta   = weeklySeries(s.v, 'Fecha Cierre', r=>r.Venta);
+  const wNContr  = weeklySeries(s.v, 'Fecha Cierre', ()=>1);
+  const wTicket  = wVenta.map((v,i)=> wNContr[i] ? Math.round(v/wNContr[i]) : 0);
+  // AOV semanal = venta de la semana / clientes únicos de la semana
+  const aovByW = {};
+  s.v.forEach(r => {
+    const w = weekOf(r['Fecha Cierre']);
+    if (!aovByW[w]) aovByW[w] = {venta:0, cli:new Set()};
+    aovByW[w].venta += r.Venta; aovByW[w].cli.add(r.Cliente);
+  });
+  const wAOV = Object.keys(aovByW).sort().map(w => Math.round(aovByW[w].venta / aovByW[w].cli.size));
+  const dHTML = (curr, prev, fmt) => {
+    if (!p || typeof prev !== 'number' || prev === 0) return '<span class="ov-kpi-delta up">▲ nuevo <span class="vs">vs. período anterior</span></span>';
+    const d = Math.round((curr-prev)/Math.abs(prev)*100);
+    const up = d >= 0;
+    return `<span class="ov-kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(d)}% <span class="vs">vs. período anterior</span></span>`;
+  };
+  const cards = [
+    {lbl:'Cash Collected',  val:fmtMoney(s.totCash),  delta:dHTML(s.totCash,  p&&p.totCash),  spark:wCash},
+    {lbl:'Ventas Totales',  val:fmtMoney(s.totVenta), delta:dHTML(s.totVenta, p&&p.totVenta), spark:wVenta},
+    {lbl:'Ticket Prom.',    val:fmtMoney(s.ticket),   delta:dHTML(s.ticket,   p&&p.ticket),   spark:wTicket},
+    {lbl:'AOV',             val:fmtMoney(s.aov),      delta:dHTML(s.aov,      p&&p.aov),      spark:wAOV},
+  ];
+  document.getElementById('ov-kpis').innerHTML = cards.map(c => `
+    <div class="ov-kpi">
+      <div class="ov-kpi-lbl">${c.lbl}</div>
+      <div class="ov-kpi-val">${c.val}</div>
+      ${c.delta}
+      ${sparklineSVG(c.spark)}
+    </div>`).join('');
+
+  // ── Ranking de closers (% del total de cash) ─
+  const rk = s.closers
+    .map(c => ({ name:c, cash:s.byCloser[c].cash }))
+    .filter(r => r.cash > 0)
+    .sort((a,b) => b.cash - a.cash);
+  const totalCash = s.totCash || 1;
+  document.getElementById('rk-body').innerHTML = rk.map((r,i) => {
+    const share = Math.round(r.cash/totalCash*100);
+    const col = share >= 40 ? 'var(--green)' : share >= 15 ? 'var(--gold)' : 'var(--red)';
+    return `<tr>
+      <td class="rk-pos">${i+1}</td>
+      <td class="rk-name">${r.name}</td>
+      <td>${fmtMoney(r.cash)}</td>
+      <td><div class="rk-bar-cell"><div class="rk-bar"><i style="width:${Math.min(share,100)}%;background:${col};"></i></div><span class="rk-pct">${share}%</span></div></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--g4);">Sin datos</td></tr>';
+
+  // ── Meta vs Realizado (mensual) ──────────────
+  const MN = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const byMonth = {};
+  s.co.forEach(r => { const m = r.Fecha.slice(0,7); byMonth[m] = (byMonth[m]||0) + r.Monto; });
+  const months = Object.keys(byMonth).sort();
+  upsertChart('meta', 'c-meta', {
+    type:'bar',
+    data:{
+      labels: months.map(m => MN[+m.slice(5,7)-1]),
+      datasets:[
+        {label:'Meta',      data:months.map(()=>META_MENSUAL_USD), backgroundColor:GY_P,   borderColor:GY,    borderWidth:1, borderRadius:3},
+        {label:'Realizado', data:months.map(m=>Math.round(byMonth[m])), backgroundColor:GREEN_P, borderColor:GREEN, borderWidth:1.5, borderRadius:3},
+      ]
+    },
+    options:{responsive:true,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:8,padding:10,color:legendCol()}},
+        tooltip:{callbacks:{label: ctx => ' '+ctx.dataset.label+': $'+(ctx.parsed.y/1000).toFixed(1)+'K'}}},
+      scales:{y:{grid:{color:gridCol()},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}},x:{grid:{display:false}}}
+    }
+  });
+
+  // ── Ticket promedio en el tiempo (semanal) ───
+  const wKeys = [...new Set(s.v.map(r=>weekOf(r['Fecha Cierre'])))].sort();
+  const tSerie = wKeys.map(w => {
+    const rows = s.v.filter(r=>weekOf(r['Fecha Cierre'])===w);
+    return rows.length ? Math.round(rows.reduce((a,r)=>a+r.Venta,0)/rows.length) : 0;
+  });
+  upsertChart('ticketTime', 'c-ticket-time', {
+    type:'line',
+    data:{
+      labels: wKeys.map(fmtDate),
+      datasets:[{
+        label:'Ticket prom.', data:tSerie,
+        borderColor:GREEN, backgroundColor:GREEN_P,
+        borderWidth:2, pointRadius:2.5, pointBackgroundColor:GREEN,
+        tension:.3, fill:true,
+      }]
+    },
+    options:{responsive:true,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label: ctx => ' $'+ctx.parsed.y.toLocaleString()}}},
+      scales:{y:{grid:{color:gridCol()},ticks:{callback:v=>'$'+(v/1000).toFixed(1)+'K'}},x:{grid:{display:false}}}
+    }
+  });
+
+  // ── Programas campeones (por Plan) ───────────
+  const byPlan = {};
+  s.v.forEach(r => {
+    const pl = (r.Plan||'Sin plan').trim() || 'Sin plan';
+    if (!byPlan[pl]) byPlan[pl] = {n:0, venta:0};
+    byPlan[pl].n++; byPlan[pl].venta += r.Venta;
+  });
+  const planes = Object.entries(byPlan).sort((a,b)=>b[1].venta-a[1].venta);
+  document.getElementById('pc-body').innerHTML = planes.map(([pl,d]) => `
+    <tr>
+      <td class="pc-name">${pl}</td>
+      <td>${d.n}</td>
+      <td class="pc-cash">${fmtMoney(d.venta)}</td>
+    </tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--g4);">Sin datos</td></tr>';
+
+  // ── Origen de las ventas (por tipo) ──────────
+  const byTipoV = {};
+  s.v.forEach(r => {
+    const t = (r.Tipo||'Sin tipo').trim() || 'Sin tipo';
+    if (!byTipoV[t]) byTipoV[t] = {n:0, venta:0};
+    byTipoV[t].n++; byTipoV[t].venta += r.Venta;
+  });
+  const totV = s.totVenta || 1;
+  const dotCols = ['var(--green)','var(--blue)','var(--gold)','#7c5cbf','var(--red)'];
+  document.getElementById('ventas-origen').innerHTML =
+    Object.entries(byTipoV).sort((a,b)=>b[1].venta-a[1].venta).map(([t,d],i) => `
+    <div class="ov-mini-row">
+      <div class="ov-mini-dot" style="background:${dotCols[i%dotCols.length]};"></div>
+      <div class="ov-mini-lbl">${t} <span style="color:var(--g4);">· ${d.n} contrato${d.n!==1?'s':''}</span></div>
+      <div class="ov-mini-val">${fmtMoney(d.venta)}</div>
+      <div class="ov-mini-sub">${Math.round(d.venta/totV*100)}%</div>
+    </div>`).join('');
 }
 
 function renderCashChart(s) {
@@ -978,10 +1146,14 @@ function exportPDF() {
 // ═══════════════════════════════════════════════
 function showPage(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>{ t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+  // Sincronizar ambas navegaciones (sidebar desktop + tabs móvil) por data-page
+  document.querySelectorAll('.tab').forEach(t=>{
+    const on = t.dataset.page === id;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.sb-item').forEach(b=> b.classList.toggle('active', b.dataset.page === id));
   document.getElementById('page-'+id).classList.add('active');
-  el.classList.add('active');
-  el.setAttribute('aria-selected','true');
   window.scrollTo(0,0);
   if (id === 'ventas' && RAW_C.length) { const s = computeStats(); renderVentas(s); }
   if (id === 'bonos'  && RAW_C.length) { const s = computeStats(); renderBonos(s); }

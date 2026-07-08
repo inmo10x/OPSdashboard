@@ -416,7 +416,8 @@ canvas { max-width:100%; }
 /* ── PRINT STYLES ───────────────────────────── */
 @media print {
   .header, .export-btn, #error-banner, #loader,
-  .closer-search, .date-bar, .nav-tabs { display:none !important; }
+  .closer-search, .date-bar, .nav-tabs, .sidebar { display:none !important; }
+  .main { margin-left:0 !important; }
   .page { display:block !important; page-break-inside:avoid; }
   .strip { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .kpi,.ccard,.cc,.vtable-wrap { break-inside:avoid; box-shadow:none !important; }
@@ -463,3 +464,118 @@ canvas { max-width:100%; }
 #login-error {
   font-size:.66rem; color:var(--red); min-height:1em; margin-top:2px;
 }
+
+/* ═══════════════════════════════════════════════
+   SHELL — sidebar (desktop) + main
+   ═══════════════════════════════════════════════ */
+.shell { display:flex; min-height:100vh; }
+
+.sidebar {
+  width:212px; flex-shrink:0; position:fixed; top:0; bottom:0; left:0; z-index:300;
+  background:var(--white); border-right:1px solid var(--border);
+  display:none; flex-direction:column; padding:18px 12px;
+  transition: background .25s, border-color .25s;
+}
+.sb-logo {
+  font-family:'Jost',sans-serif; font-weight:700; font-size:1.2rem; color:var(--g1);
+  padding:4px 10px 18px; letter-spacing:.01em;
+}
+.sb-logo span { color:var(--gold); }
+.sb-nav { display:flex; flex-direction:column; gap:2px; flex:1; }
+.sb-item {
+  display:flex; align-items:center; gap:10px; padding:10px 12px;
+  border:none; background:none; width:100%; text-align:left; cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:500;
+  color:var(--g3); border-radius:var(--r); transition: all .15s;
+}
+.sb-item:hover { background:var(--bg); color:var(--g1); }
+.sb-item.active {
+  background:var(--gold-grad); color:#fff; font-weight:600;
+  box-shadow:var(--sh);
+}
+.sb-ico { font-size:.9rem; width:20px; text-align:center; flex-shrink:0; }
+.sb-foot { padding:10px 12px; font-size:.56rem; color:var(--g4); }
+
+.main { flex:1; min-width:0; }
+
+@media (min-width:1024px) {
+  .sidebar { display:flex; }
+  .main { margin-left:212px; }
+  .nav-tabs { display:none; }        /* en desktop navega el sidebar */
+  .strip { border-radius:var(--r2); margin:14px 20px 0; }
+  .page { padding:0 8px 24px; }
+}
+
+/* ═══════════════════════════════════════════════
+   VISIÓN GENERAL (estilo muestra)
+   ═══════════════════════════════════════════════ */
+.ov-wrap { padding:16px; display:flex; flex-direction:column; gap:14px; }
+
+/* fila de KPI cards con sparkline */
+.ov-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media (max-width:1200px) { .ov-kpis { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:560px)  { .ov-kpis { grid-template-columns:1fr; } }
+
+.ov-kpi {
+  background:var(--white); border:1px solid var(--border); border-radius:var(--r2);
+  padding:16px 16px 10px; box-shadow:var(--sh);
+  transition: background .25s, border-color .25s;
+}
+.ov-kpi-lbl { font-size:.6rem; color:var(--g4); text-transform:uppercase; letter-spacing:.09em; font-weight:500; margin-bottom:6px; }
+.ov-kpi-val { font-family:'Jost',sans-serif; font-weight:700; font-size:1.7rem; color:var(--g1); line-height:1.05; }
+.ov-kpi-delta { font-size:.62rem; font-weight:600; margin-top:5px; display:inline-flex; align-items:center; gap:4px; }
+.ov-kpi-delta.up   { color:var(--green); }
+.ov-kpi-delta.down { color:var(--red); }
+.ov-kpi-delta .vs  { color:var(--g4); font-weight:400; }
+.ov-spark { margin-top:8px; width:100%; height:36px; display:block; }
+.ov-spark polyline { fill:none; stroke:var(--gold-l); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.ov-spark .spark-fill { fill:var(--gold-pale); stroke:none; opacity:.6; }
+
+/* grids de dos columnas */
+.ov-row { display:grid; gap:14px; }
+.ov-row.r-5-7 { grid-template-columns:5fr 7fr; }
+.ov-row.r-7-5 { grid-template-columns:7fr 5fr; }
+@media (max-width:900px) { .ov-row.r-5-7, .ov-row.r-7-5 { grid-template-columns:1fr; } }
+
+.ov-card {
+  background:var(--white); border:1px solid var(--border); border-radius:var(--r2);
+  padding:16px; box-shadow:var(--sh); min-width:0;
+  transition: background .25s, border-color .25s;
+}
+.ov-card h3 { font-family:'Jost',sans-serif; font-weight:700; font-size:.95rem; color:var(--g1); margin-bottom:12px; }
+
+/* tabla ranking */
+.rk-table { width:100%; border-collapse:collapse; font-size:.72rem; }
+.rk-table th {
+  text-align:left; font-size:.56rem; color:var(--g4); text-transform:uppercase;
+  letter-spacing:.07em; padding:6px 8px; border-bottom:1px solid var(--border);
+}
+.rk-table th:nth-child(n+3), .rk-table td:nth-child(n+3) { text-align:right; }
+.rk-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--g2); }
+.rk-table tr:last-child td { border-bottom:none; }
+.rk-pos { font-family:'Jost',sans-serif; font-weight:700; color:var(--g4); width:26px; }
+.rk-name { font-weight:600; color:var(--g1); }
+.rk-bar-cell { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.rk-bar { width:64px; height:6px; background:var(--bg2); border-radius:3px; overflow:hidden; flex-shrink:0; }
+.rk-bar i { display:block; height:100%; border-radius:3px; }
+.rk-pct { font-weight:600; color:var(--g1); width:36px; text-align:right; }
+
+/* tabla programas campeones */
+.pc-table { width:100%; border-collapse:collapse; font-size:.72rem; }
+.pc-table th {
+  text-align:left; font-size:.56rem; color:var(--g4); text-transform:uppercase;
+  letter-spacing:.07em; padding:6px 8px; border-bottom:1px solid var(--border);
+}
+.pc-table th:nth-child(n+2), .pc-table td:nth-child(n+2) { text-align:right; }
+.pc-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--g2); }
+.pc-table tr:last-child td { border-bottom:none; }
+.pc-name { font-weight:600; color:var(--g1); }
+.pc-cash { color:var(--green); font-weight:600; }
+
+/* mini breakdown origen ventas */
+.ov-mini { display:flex; flex-direction:column; gap:8px; }
+.ov-mini-row { display:flex; align-items:center; gap:10px; font-size:.7rem; }
+.ov-mini-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.ov-mini-lbl { color:var(--g3); flex:1; }
+.ov-mini-val { font-weight:600; color:var(--g1); }
+.ov-mini-sub { color:var(--g4); font-size:.62rem; width:52px; text-align:right; }
