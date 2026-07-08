@@ -118,6 +118,28 @@ const RED='#944030',   RED_P='rgba(148,64,48,.15)';
 const BLUE='#2a527a',  BLUE_P='rgba(42,82,122,.12)';
 const GY='#9a978f',    GY_P='rgba(154,151,143,.12)';
 
+// ── Estilos por tipo de cobro (con fallback para tipos nuevos en la hoja) ──
+const TIPO_STYLE = {
+  'Nuevo':      {ico:'✦', css:'var(--green)', bg:'var(--green-p)',  hex:'#3d6b50', fill:'rgba(61,107,80,.75)'},
+  'CxC':        {ico:'↻', css:'var(--gold)',  bg:'var(--gold-pale)',hex:'#a8832a', fill:'rgba(168,131,42,.75)'},
+  'Renovación': {ico:'★', css:'var(--blue)',  bg:'var(--blue-p)',   hex:'#2a527a', fill:'rgba(42,82,122,.75)'},
+  'Upsell':     {ico:'▲', css:'#7c5cbf',      bg:'#f0edf8',         hex:'#7c5cbf', fill:'rgba(124,92,191,.75)'},
+};
+// Paleta de reserva para tipos no registrados (se asignan en orden de aparición)
+const TIPO_FALLBACK = [
+  {ico:'●', css:'#b0653a', bg:'#f7ede6', hex:'#b0653a', fill:'rgba(176,101,58,.75)'},
+  {ico:'●', css:'#4a8a8c', bg:'#e8f2f2', hex:'#4a8a8c', fill:'rgba(74,138,140,.75)'},
+  {ico:'●', css:'#8c4a7c', bg:'#f4eaf1', hex:'#8c4a7c', fill:'rgba(140,74,124,.75)'},
+];
+const tipoStyleCache = {};
+function tipoStyle(t) {
+  if (TIPO_STYLE[t]) return TIPO_STYLE[t];
+  if (!tipoStyleCache[t]) {
+    tipoStyleCache[t] = TIPO_FALLBACK[Object.keys(tipoStyleCache).length % TIPO_FALLBACK.length];
+  }
+  return tipoStyleCache[t];
+}
+
 // ═══════════════════════════════════════════════
 //  CORE STATS (compartido entre período actual y anterior)
 // ═══════════════════════════════════════════════
@@ -214,16 +236,18 @@ function computeStats() {
     };
   });
 
-  // Weekly cash (total + by tipo)
-  const TIPOS = ['Nuevo','CxC','Renovación','Upsell'];
+  // Weekly cash (total + by tipo) — tipos dinámicos según los datos,
+  // para que un tipo nuevo en la hoja (ej. "Iniciando") no se pierda ni
+  // se contabilice como CxC.
+  const tiposCash = [...new Set(co.map(r => r.Tipo || 'CxC'))];
   const weekCash = {};
   const weekCashByTipo = {};
   co.forEach(r => {
     const w = weekOf(r.Fecha);
     weekCash[w] = (weekCash[w]||0) + r.Monto;
-    if (!weekCashByTipo[w]) weekCashByTipo[w] = {Nuevo:0,CxC:0,'Renovación':0,Upsell:0};
-    const t = TIPOS.includes(r.Tipo) ? r.Tipo : 'CxC';
-    weekCashByTipo[w][t] += r.Monto;
+    if (!weekCashByTipo[w]) weekCashByTipo[w] = {};
+    const t = r.Tipo || 'CxC';
+    weekCashByTipo[w][t] = (weekCashByTipo[w][t]||0) + r.Monto;
   });
 
   // Weekly confirmer
@@ -248,7 +272,7 @@ function computeStats() {
     confByCloser[r.Closer]=(confByCloser[r.Closer]||0)+1;
   });
 
-  return {...core,totCi,totCobrado,totPdte,byCloser,weekCash,weekCashByTipo,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
+  return {...core,totCi,totCobrado,totPdte,byCloser,tiposCash,weekCash,weekCashByTipo,weekConf,confConf,confCanc,confDesc,confTotal,confByCloser,closers};
 }
 
 // ═══════════════════════════════════════════════
@@ -320,21 +344,21 @@ function renderKPIs(s) {
 
 function renderCashChart(s) {
   const weeks = Object.keys(s.weekCash).sort();
-  const tipoConfig = [
-    {key:'Nuevo',      label:'Nuevo',      color:'#3d6b50', colorP:'rgba(61,107,80,.75)'},
-    {key:'CxC',        label:'CxC',        color:'#a8832a', colorP:'rgba(168,131,42,.75)'},
-    {key:'Renovación', label:'Renovación', color:'#2a527a', colorP:'rgba(42,82,122,.75)'},
-    {key:'Upsell',     label:'Upsell',     color:'#7c5cbf', colorP:'rgba(124,92,191,.75)'},
-  ];
+  // Tipos dinámicos: los conocidos con su estilo, los nuevos con paleta de reserva
+  const orden = ['Nuevo','CxC','Renovación','Upsell'];
+  const tipos = [...s.tiposCash].sort((a,b)=>{
+    const ia = orden.indexOf(a), ib = orden.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
   upsertChart('cash', 'c-cash', {
     type:'bar',
     data:{
       labels: weeks.map(fmtDate),
-      datasets: tipoConfig.map(t=>({
-        label: t.label,
-        data: weeks.map(w => Math.round((s.weekCashByTipo[w]||{})[t.key]||0)),
-        backgroundColor: t.colorP,
-        borderColor: t.color,
+      datasets: tipos.map(t=>({
+        label: t,
+        data: weeks.map(w => Math.round((s.weekCashByTipo[w]||{})[t]||0)),
+        backgroundColor: tipoStyle(t).fill,
+        borderColor: tipoStyle(t).hex,
         borderWidth: 1,
         borderRadius: 3,
       }))
@@ -776,22 +800,21 @@ function renderVentas(s) {
 function renderTipo(s) {
   const el = document.getElementById('tipo-row');
   if (!el) return;
-  const tipos = [
-    {k:'Nuevo',      ico:'✦', col:'var(--green)',    bg:'var(--green-p)'},
-    {k:'CxC',        ico:'↻', col:'var(--gold)',     bg:'var(--gold-pale)'},
-    {k:'Renovación', ico:'★', col:'var(--blue)',     bg:'var(--blue-p)'},
-    {k:'Upsell',     ico:'▲', col:'#7c5cbf',        bg:'#f0edf8'},
-  ];
   const total = s.totCash || 1;
+  // Tipos según los datos reales, ordenados por monto desc (los conocidos
+  // primero mantienen su estilo; los nuevos reciben la paleta de reserva)
   const tipoB = {};
-  ['Nuevo','CxC','Renovación','Upsell'].forEach(t => {
-    tipoB[t] = s.co.filter(r=>r.Tipo===t).reduce((sum,r)=>sum+r.Monto,0);
+  s.co.forEach(r => {
+    const t = r.Tipo || 'CxC';
+    tipoB[t] = (tipoB[t]||0) + r.Monto;
   });
-  el.innerHTML = tipos.map(t => {
-    const m = tipoB[t.k]||0, p = Math.round(m/total*100);
-    return '<div class="kpi" style="min-width:110px;border-top:3px solid '+t.col+';">'
-      +'<div class="kpi-lbl" style="display:flex;align-items:center;gap:4px;"><span style="color:'+t.col+';">'+t.ico+'</span>'+t.k.toUpperCase()+'</div>'
-      +'<div class="kpi-val" style="color:'+t.col+';font-size:1.5rem;">'+fmtMoney(m)+'</div>'
+  const tipos = Object.keys(tipoB).sort((a,b)=>tipoB[b]-tipoB[a]);
+  el.innerHTML = tipos.map(k => {
+    const st = tipoStyle(k);
+    const m = tipoB[k], p = Math.round(m/total*100);
+    return '<div class="kpi" style="min-width:110px;border-top:3px solid '+st.css+';">'
+      +'<div class="kpi-lbl" style="display:flex;align-items:center;gap:4px;"><span style="color:'+st.css+';">'+st.ico+'</span>'+k.toUpperCase()+'</div>'
+      +'<div class="kpi-val" style="color:'+st.css+';font-size:1.5rem;">'+fmtMoney(m)+'</div>'
       +'<div class="kpi-sub">'+p+'% del cash</div>'
     +'</div>';
   }).join('');
@@ -1014,28 +1037,51 @@ function saveCache(data) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch(e) {}
 }
 
-function fetchRemote() {
-  return new Promise((resolve, reject) => {
-    const cb = 'cb_' + Date.now();
-    const script = document.createElement('script');
-    const timer = setTimeout(() => {
-      delete window[cb];
-      if(document.head.contains(script)) document.head.removeChild(script);
-      reject(new Error('Timeout'));
-    }, 30000);
-    window[cb] = (data) => {
-      clearTimeout(timer);
-      delete window[cb];
-      if(document.head.contains(script)) document.head.removeChild(script);
-      // El Apps Script responde {error:...} cuando el token es inválido o falta
-      if (data && data.error) { reject(new Error('AUTH')); return; }
-      resolve(data);
-    };
-    script.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo cargar Apps Script')); };
-    const auth = '&user=' + encodeURIComponent(authUser||'') + '&token=' + encodeURIComponent(authToken||'');
-    script.src = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec?callback=' + cb + auth;
-    document.head.appendChild(script);
-  });
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1oFF7dx-uNZeC-NwJuwh0QYB49EQRgy5MVjv70TNWh1CeRGDNCMz6z2ykN0yCIAw9/exec';
+
+// fetch() con CORS en vez de JSONP: Chrome moderno bloquea el JSONP con
+// ERR_BLOCKED_BY_ORB porque el Apps Script responde con Content-Type no-JS.
+// El Apps Script sigue envolviendo la respuesta como cb(...), así que se
+// quita el envoltorio antes de parsear — no requiere cambios server-side.
+async function fetchOnce(timeoutMs) {
+  const auth = '&user=' + encodeURIComponent(authUser||'') + '&token=' + encodeURIComponent(authToken||'');
+  const url = APPS_SCRIPT_URL + '?callback=cb' + auth;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let text;
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    text = await res.text();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Timeout');
+    throw new Error(e.message && e.message.startsWith('HTTP') ? e.message : 'No se pudo cargar Apps Script');
+  } finally {
+    clearTimeout(timer);
+  }
+  // Quitar envoltorio JSONP "cb(...)" si está presente
+  const m = text.match(/^\s*[\w$]+\s*\(([\s\S]*)\)\s*;?\s*$/);
+  let data;
+  try {
+    data = JSON.parse(m ? m[1] : text);
+  } catch (e) {
+    throw new Error('Respuesta inválida del Apps Script');
+  }
+  // El Apps Script responde {error:...} cuando el token es inválido o falta
+  if (data && data.error) throw new Error('AUTH');
+  return data;
+}
+
+async function fetchRemote() {
+  // El Apps Script puede tardar 20-40s en frío o dar 404 transitorio por
+  // cuota; un reintento con backoff evita el "Reintentar" manual del usuario.
+  try {
+    return await fetchOnce(60000);
+  } catch (e) {
+    if (e.message === 'AUTH') throw e;   // credenciales malas: no reintentar
+    await new Promise(r => setTimeout(r, 3000));
+    return await fetchOnce(60000);
+  }
 }
 
 async function loadData(force) {
