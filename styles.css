@@ -4,6 +4,7 @@ html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',san
 
 /* ══ LIGHT MODE (default) ═══════════════════ */
 :root {
+  color-scheme: light;
   --white: #ffffff;
   --bg:    #f7f5f0;
   --bg2:   #eeebe3;
@@ -29,6 +30,7 @@ html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',san
 
 /* ══ DARK MODE ═══════════════════════════════ */
 [data-theme="dark"] {
+  color-scheme: dark;
   --white:   #141412;
   --bg:      #1c1b18;
   --bg2:     #242220;
