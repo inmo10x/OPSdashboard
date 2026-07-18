@@ -116,6 +116,7 @@ function applyChartTheme() {
 }
 Chart.defaults.font.family = "'DM Sans',sans-serif";
 Chart.defaults.font.size = 10;
+Chart.defaults.maintainAspectRatio = false; // los canvas viven en .chart-box con altura fija
 applyChartTheme();
 
 const GOLD='#a8832a', GOLD_L='#c9a84c', GOLD_P='rgba(168,131,42,.12)';
@@ -911,7 +912,7 @@ function renderVentas(s) {
     cEl.innerHTML =
       // ── MONTHLY BREAKDOWN TABLE ──
       '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px;">'
-      +'<div style="padding:11px 14px;background:var(--g1);display:flex;align-items:center;gap:8px;">'
+      +'<div style="padding:11px 14px;background:var(--ink);display:flex;align-items:center;gap:8px;">'
       +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:.88rem;color:#fff;">Desglose Mensual</span>'
       +'<span style="font-size:.58rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;margin-left:auto;">USD</span>'
       +'</div>'
@@ -1083,7 +1084,7 @@ function renderBonos(s) {
 
     html += `
     <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--sh);margin:0 16px 14px;overflow:hidden;">
-      <div style="background:var(--g1);padding:14px;display:flex;align-items:center;gap:12px;">
+      <div style="background:var(--ink);padding:14px;display:flex;align-items:center;gap:12px;">
         <div class="cav ${cavCls[closer]}" style="width:40px;height:40px;font-size:1.1rem;">${closer[0]}</div>
         <div style="flex:1;">
           <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:1rem;color:#fff;">${closer}</div>
@@ -1155,8 +1156,21 @@ function showPage(id, el) {
   document.querySelectorAll('.sb-item').forEach(b=> b.classList.toggle('active', b.dataset.page === id));
   document.getElementById('page-'+id).classList.add('active');
   window.scrollTo(0,0);
-  if (id === 'ventas' && RAW_C.length) { const s = computeStats(); renderVentas(s); }
-  if (id === 'bonos'  && RAW_C.length) { const s = computeStats(); renderBonos(s); }
+  if (!RAW_C.length) return;
+  const s = computeStats();
+  if (id === 'ventas') renderVentas(s);
+  if (id === 'bonos')  renderBonos(s);
+  // Chart.js no puede medir canvas ocultos (quedan en 0×0 y resize() no los
+  // recupera): destruir y re-crear los charts de la página recién mostrada.
+  const PAGE_CHARTS = {
+    overview:  ['meta','ticketTime','cash','funnel'],
+    closers:   ['rates','ventasCloser','revenueShare'],
+    confirmer: ['confWeek','confCloser'],
+  };
+  (PAGE_CHARTS[id]||[]).forEach(destroyChart);
+  if (id === 'overview')  { renderOverview(s); renderCashChart(s); renderFunnelChart(s); }
+  if (id === 'closers')   { renderRatesChart(s); renderVentasPorCloser(s); renderRevenueShare(s); }
+  if (id === 'confirmer') { renderConfirmer(s); }
 }
 
 function toggleCloser(name) {

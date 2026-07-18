@@ -6,6 +6,7 @@ html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',san
 :root {
   color-scheme: light;
   --white: #ffffff;
+  --ink: #1a1916;      /* superficie oscura fija (no se invierte en dark) */
   --bg:    #f7f5f0;
   --bg2:   #eeebe3;
   --border:#e2ddd4;
@@ -32,6 +33,7 @@ html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',san
 [data-theme="dark"] {
   color-scheme: dark;
   --white:   #141412;
+  --ink: #0a0908;
   --bg:      #1c1b18;
   --bg2:     #242220;
   --border:  #2e2c28;
@@ -189,14 +191,13 @@ canvas, .tab, .preset, .date-input, .export-btn,
 /* ── SUMMARY STRIP ──────────────────────────── */
 .strip {
   display:grid; grid-template-columns:repeat(4,1fr);
-  background:var(--g1); gap:0;
+  background:var(--ink); gap:0;
   transition: background .25s;
 }
 .strip-item {
   padding:14px 8px; text-align:center;
   border-right:1px solid rgba(255,255,255,.08);
 }
-[data-theme="dark"] .strip { background:#0a0908; }
 [data-theme="dark"] .strip-item { border-right-color:rgba(255,255,255,.05); }
 .strip-item:last-child{border-right:none}
 .strip-val {
@@ -321,7 +322,7 @@ canvas { max-width:100%; }
 
 /* ── CONFIRMER ──────────────────────────────── */
 .conf-header {
-  background:var(--g1); margin:0 16px 12px; border-radius:var(--r2);
+  background:var(--ink); margin:0 16px 12px; border-radius:var(--r2);
   padding:16px; display:flex; align-items:center; gap:12px;
 }
 .conf-av {
@@ -581,3 +582,7 @@ canvas { max-width:100%; }
 .ov-mini-lbl { color:var(--g3); flex:1; }
 .ov-mini-val { font-weight:600; color:var(--g1); }
 .ov-mini-sub { color:var(--g4); font-size:.62rem; width:52px; text-align:right; }
+
+/* Contenedor de charts: Chart.js responsive necesita un padre posicionado con altura fija */
+.chart-box { position:relative; width:100%; }
+.chart-box canvas { max-width:100%; }

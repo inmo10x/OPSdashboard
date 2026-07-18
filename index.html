@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <!-- ?v= — bump en cada deploy para invalidar caché del navegador -->
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 
@@ -118,7 +118,7 @@
       </div>
       <div class="ov-card">
         <h3>Meta vs. realizado</h3>
-        <canvas id="c-meta" height="170"></canvas>
+        <div class="chart-box" style="height:280px"><canvas id="c-meta"></canvas></div>
       </div>
     </div>
 
@@ -126,7 +126,7 @@
     <div class="ov-row r-7-5">
       <div class="ov-card">
         <h3>Ticket promedio a lo largo del tiempo</h3>
-        <canvas id="c-ticket-time" height="150"></canvas>
+        <div class="chart-box" style="height:240px"><canvas id="c-ticket-time"></canvas></div>
       </div>
       <div class="ov-card">
         <h3>Programas campeones</h3>
@@ -163,11 +163,11 @@
     <div class="ov-row r-7-5">
       <div class="ov-card">
         <h3>Evolución de cobros <span style="font-weight:400;font-size:.62rem;color:var(--g4);">· USD semana a semana</span></h3>
-        <canvas id="c-cash" height="170"></canvas>
+        <div class="chart-box" style="height:260px"><canvas id="c-cash"></canvas></div>
       </div>
       <div class="ov-card">
         <h3>Embudo por closer <span style="font-weight:400;font-size:.62rem;color:var(--g4);">· agendas → asist. → cierres</span></h3>
-        <canvas id="c-funnel" height="170"></canvas>
+        <div class="chart-box" style="height:260px"><canvas id="c-funnel"></canvas></div>
       </div>
     </div>
 
@@ -185,9 +185,9 @@
   </div>
   <div class="divider"></div>
   <div style="height:12px"></div>
-  <div class="cc"><h3>Ventas por Closer</h3><div class="cc-sub">USD · Nuevas vs Renovaciones</div><canvas id="c-ventas-closer" height="200"></canvas></div>
-  <div class="cc"><h3>Contribución al Revenue</h3><div class="cc-sub">% del cash cobrado por closer</div><canvas id="c-revenue-share" height="200"></canvas></div>
-  <div class="cc"><h3>Show Rate vs Close Rate</h3><div class="cc-sub">% comparado por closer</div><canvas id="c-rates" height="200"></canvas></div>
+  <div class="cc"><h3>Ventas por Closer</h3><div class="cc-sub">USD · Nuevas vs Renovaciones</div><div class="chart-box" style="height:300px"><canvas id="c-ventas-closer"></canvas></div></div>
+  <div class="cc"><h3>Contribución al Revenue</h3><div class="cc-sub">% del cash cobrado por closer</div><div class="chart-box" style="height:320px"><canvas id="c-revenue-share"></canvas></div></div>
+  <div class="cc"><h3>Show Rate vs Close Rate</h3><div class="cc-sub">% comparado por closer</div><div class="chart-box" style="height:300px"><canvas id="c-rates"></canvas></div></div>
 </div>
 
 <!-- ═══════════════ PAGE: CONFIRMER ═══════════════ -->
@@ -198,8 +198,8 @@
   <div id="conf-stats-wrap" class="conf-stats"><!-- JS --></div>
   <div class="pipe-bar" id="conf-pipe"><!-- JS --></div>
 
-  <div class="cc"><h3>Resultados por Semana</h3><div class="cc-sub">Confirmados, Cancelados, Descalificados</div><canvas id="c-conf-week" height="200"></canvas></div>
-  <div class="cc"><h3>Leads por Closer</h3><div class="cc-sub">Confirmados asignados</div><canvas id="c-conf-closer" height="200"></canvas></div>
+  <div class="cc"><h3>Resultados por Semana</h3><div class="cc-sub">Confirmados, Cancelados, Descalificados</div><div class="chart-box" style="height:300px"><canvas id="c-conf-week"></canvas></div></div>
+  <div class="cc"><h3>Leads por Closer</h3><div class="cc-sub">Confirmados asignados</div><div class="chart-box" style="height:320px"><canvas id="c-conf-closer"></canvas></div></div>
 </div>
 
 <!-- ═══════════════ PAGE: VENTAS ═══════════════ -->
@@ -231,6 +231,6 @@
 </div><!-- /main -->
 </div><!-- /shell -->
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
