@@ -20,6 +20,7 @@ const auth = { ok: true, text: async () => 'cb({"error":"Credenciales ficticias"
 function harness(responses) {
   let calls = 0;
   const retries = [], waits = [], timeouts = [], timers = new Set();
+  const fetchOnceTimeouts = [];
   const elements = {
     'login-user': { value: 'ejemplo' }, 'login-pass': { value: 'token-ficticio' },
     'login-btn': { textContent: 'Ingresar', disabled: false },
@@ -34,7 +35,7 @@ function harness(responses) {
     },
     setTimeout(callback, ms) {
       const timer = {};
-      if (ms === 45000) {
+      if ([45000, 60000, 90000].includes(ms)) {
         timeouts.push(ms);
         timers.add(timer); // Registrar el timeout; estas respuestas son inmediatas.
       } else {
@@ -49,6 +50,11 @@ function harness(responses) {
     sessionStorage: { setItem() {} }, saveCache() {}, ingest() {}
   });
   vm.runInContext(code, context);
+  const originalFetchOnce = context.fetchOnce;
+  context.fetchOnce = timeoutMs => {
+    fetchOnceTimeouts.push(timeoutMs);
+    return originalFetchOnce(timeoutMs);
+  };
   const originalFetchRemote = context.fetchRemote;
   context.fetchRemote = (options = {}) => originalFetchRemote({
     onRetry(...args) {
@@ -71,7 +77,9 @@ function harness(responses) {
       assert.equal(calls, expectedCalls);
       assert.deepEqual(waits, expectedWaits);
       assert.deepEqual(retries, expectedWaits.map((ms, i) => [i + 1, 3, ms / 1000]));
-      assert.equal(timeouts.length, expectedCalls);
+      const expectedTimeouts = [45000, 60000, 90000].slice(0, expectedCalls);
+      assert.deepEqual(fetchOnceTimeouts, expectedTimeouts);
+      assert.deepEqual(timeouts, expectedTimeouts);
       assert.equal(timers.size, 0);
     }
   };

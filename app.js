@@ -1265,10 +1265,11 @@ function classifyError(e) {
 
 async function fetchRemote({onRetry} = {}) {
   const waits = [3, 10];
+  const timeouts = [45000, 60000, 90000];
   const totalAttempts = waits.length + 1;
   for (let attempt = 1; attempt <= totalAttempts; attempt++) {
     try {
-      return await fetchOnce(45000);
+      return await fetchOnce(timeouts[attempt - 1]);
     } catch (e) {
       if (classifyError(e) === 'auth' || attempt === totalAttempts) throw e;
       const seconds = waits[attempt - 1];
