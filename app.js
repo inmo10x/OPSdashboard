@@ -1258,15 +1258,24 @@ async function fetchOnce(timeoutMs) {
   return data;
 }
 
-async function fetchRemote() {
-  // El Apps Script puede tardar 20-40s en frío o dar 404 transitorio por
-  // cuota; un reintento con backoff evita el "Reintentar" manual del usuario.
-  try {
-    return await fetchOnce(60000);
-  } catch (e) {
-    if (e.message === 'AUTH') throw e;   // credenciales malas: no reintentar
-    await new Promise(r => setTimeout(r, 3000));
-    return await fetchOnce(60000);
+function classifyError(e) {
+  // Solo AUTH indica credenciales inválidas; los demás fallos son del servicio.
+  return e && e.message === 'AUTH' ? 'auth' : 'servicio';
+}
+
+async function fetchRemote({onRetry} = {}) {
+  const waits = [3, 10];
+  const timeouts = [45000, 60000, 90000];
+  const totalAttempts = waits.length + 1;
+  for (let attempt = 1; attempt <= totalAttempts; attempt++) {
+    try {
+      return await fetchOnce(timeouts[attempt - 1]);
+    } catch (e) {
+      if (classifyError(e) === 'auth' || attempt === totalAttempts) throw e;
+      const seconds = waits[attempt - 1];
+      if (onRetry) onRetry(attempt, totalAttempts, seconds);
+      await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+    }
   }
 }
 
@@ -1426,20 +1435,28 @@ async function doLogin(e) {
   const p = document.getElementById('login-pass').value;
   const btn = document.getElementById('login-btn');
   const err = document.getElementById('login-error');
+  const originalButtonText = btn.textContent;
   authUser = u; authToken = p;
   btn.disabled = true; btn.textContent = 'Verificando…'; err.textContent = '';
   try {
-    const texts = await fetchRemote();        // valida credenciales contra el Apps Script
+    const texts = await fetchRemote({
+      onRetry(attempt, total, seconds) {
+        btn.textContent = `Reintentando… (${attempt + 1} de ${total})`;
+        err.textContent = `El servicio tarda en responder. Intento ${attempt + 1} de ${total} en ${seconds} segundos.`;
+      }
+    });
+    err.textContent = '';
     sessionStorage.setItem('ops_auth', JSON.stringify({u, p}));
     saveCache(texts);
     document.getElementById('login-gate').style.display = 'none';
     ingest(texts, false);
   } catch (ex) {
     authUser = null; authToken = null;
-    err.textContent = ex.message === 'AUTH'
+    err.textContent = classifyError(ex) === 'auth'
       ? 'Usuario o contraseña incorrectos'
-      : 'Error de conexión: ' + ex.message;
-    btn.disabled = false; btn.textContent = 'Entrar';
+      : 'El servicio de Google no está disponible en este momento. Suele ser un problema temporal. Intenta de nuevo en un par de minutos.';
+  } finally {
+    btn.disabled = false; btn.textContent = originalButtonText;
   }
   return false;
 }
