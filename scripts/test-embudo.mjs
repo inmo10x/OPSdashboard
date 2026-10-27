@@ -20,7 +20,7 @@ const c = vm.createContext({
 });
 vm.runInContext(extract('const EMBUDO_QUIEBRE =', 'function showPage(')
   + extract('function inRange(', 'function weekOf(')
-  + extract('function fmtMoney(', 'function pct('), c);
+  + extract('function fmtDate(', 'function pct('), c);
 const leadKey = 'Leads (definición reescrita)';
 function row(inicio = '2026-08-03', overrides = {}) {
   return {
@@ -33,7 +33,7 @@ function row(inicio = '2026-08-03', overrides = {}) {
     'Costo por reunión': 12.123456, 'CAC (USD)': 12.654321, ...overrides
   };
 }
-const parse = rows => c.parseEmbudo(rows, '2026-10-27');
+const parse = rows => c.parseEmbudo(rows);
 const nd = value => {
   const html = c.embudoFormato(value, 'ratio');
   assert.match(html, />n\/d</);
@@ -49,16 +49,30 @@ const scenarios = [
     assert.equal(md.Leads, 0); assert.equal(md.AgendasVenta, 2);
     assert.equal(md.Fuente, 'manual'); assert.equal(md.Nota, 'nota');
   }],
-  ['futuras vacías descartadas; datos y ceros explícitos preservados', () => {
-    const empty = {'Inversión Meta (USD)':'', Agendas:0, [leadKey]:''};
-    assert.equal(parse([row('2026-11-02', empty)]).length, 0);
-    for (const key of ['Inversión Meta (USD)', 'Agendas', leadKey]) {
-      assert.equal(parse([row('2026-11-02', {...empty, [key]:1})]).length, 1);
+  ['placeholders pasados y futuros descartados; datos y ceros preservados', () => {
+    const empty = {'Inversión Meta (USD)':'', Agendas:5, [leadKey]:'', 'Agendas de venta (CRM)':''};
+    for (const fecha of ['2025-12-29', '2026-11-02']) {
+      assert.equal(parse([row(fecha, empty)]).length, 0);
+      for (const key of ['Inversión Meta (USD)', leadKey, 'Agendas de venta (CRM)']) {
+        for (const value of [0,1]) {
+          assert.equal(parse([row(fecha, {...empty, [key]:value})]).length, 1);
+        }
+      }
     }
-    assert.equal(parse([row('2026-01-05', empty)]).length, 1);
     const r = parse([row('2026-08-03', {'Inversión Meta (USD)':'', [leadKey]:'', 'CPL (USD)':'', 'CAC (USD)':0})])[0];
     assert.equal(r.inversion, null); assert.equal(r.bookings, null); assert.equal(r.cpl, null);
     assert.equal(r.cac, 0); nd(r.cpl); assert.equal(c.embudoFormato(r.cac,'money'), '$0');
+  }],
+  ['placeholder de diciembre no anula enero al ampliar el rango', () => {
+    const placeholder = row('2025-12-29', {Mes:1, 'Inversión Meta (USD)':'', [leadKey]:'', 'Agendas de venta (CRM)':''});
+    const real = row('2026-01-05', {Mes:1});
+    const weeks = parse([placeholder, real]);
+    const monthly = c.embudoMensual(weeks);
+    assert.equal(monthly.length,1);
+    assert.equal(monthly[0].periodo,'2026-01');
+    assert.equal(monthly[0].inversion,12); assert.equal(monthly[0].bookings,3);
+    assert.equal(monthly[0].cpl,4); assert.equal(monthly[0].costoVenta,6);
+    assert.equal(monthly[0].costoAsistencia,12); assert.equal(monthly[0].cac,12);
   }],
   ['semanal conserva precisión y razones originales, salvo QB/B', () => {
     const r = parse([row()])[0];
@@ -113,12 +127,13 @@ const scenarios = [
     c.dateFrom='2026-07-20'; c.dateTo='2026-07-20'; c.renderEmbudo();
     let html = elements['embudo-table-wrap'].innerHTML;
     assert.match(html,/embudo-quiebre/); assert.match(html,/Inicio leads GHL/);
-    assert.doesNotMatch(html,/2026-07-13|2026-08-03/);
+    assert.match(html,/07\/20 – 08\/09/);
+    assert.doesNotMatch(html,/07\/13|08\/03|2026-07-20/);
     assert.equal((html.match(/scope="col"/g)||[]).length,13);
     c.setEmbudoModo('mensual'); html=elements['embudo-table-wrap'].innerHTML;
     assert.match(html,/2026-08/); assert.match(html,/0,50/);
     c.setEmbudoModo('semanal');
-    c.RAW_ES[1].fin='<script>'; c.renderEmbudo();
+    c.RAW_ES[1].fin='2026-<script>'; c.renderEmbudo();
     assert.match(elements['embudo-table-wrap'].innerHTML,/&lt;script&gt;/);
   }]
 ];

@@ -1095,7 +1095,7 @@ function embudoNumero(value) {
 function embudoDivision(a, b) {
   return a == null || b == null || b === 0 ? null : a / b;
 }
-function parseEmbudo(rows, hoy = new Date().toISOString().slice(0,10)) {
+function parseEmbudo(rows) {
   if (!rows.length) return [];
   const keys = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k.startsWith('Leads ('))))];
   if (keys.length !== 1) throw new Error('Embudo: se esperaba una única columna que empiece con "Leads (". Revisá la hoja EMBUDO_SEMANAL.');
@@ -1108,7 +1108,7 @@ function parseEmbudo(rows, hoy = new Date().toISOString().slice(0,10)) {
     cpl: embudoNumero(r['CPL (USD)']), costoVenta: embudoNumero(r['Costo por agenda de venta (USD)']),
     show: embudoNumero(r['% show (realizadas/confirmadas)']), cierre: embudoNumero(r['% cierre (cierres/realizadas)']),
     costoAsistencia: embudoNumero(r['Costo por reunión']), cac: embudoNumero(r['CAC (USD)']),
-  })).filter(r => r.inicio && !(r.inicio > hoy && !r.inversion && !r.agendas && !r.bookings))
+  })).filter(r => r.inicio && !(r.inversion === null && r.bookings === null && r.venta === null))
     .map(r => ({...r, qb: r.inicio >= EMBUDO_QUIEBRE ? embudoDivision(r.bookings, r.agendas) : null}))
     .sort((a,b) => a.inicio.localeCompare(b.inicio));
 }
@@ -1184,7 +1184,7 @@ function renderEmbudo() {
     +columns.map(([label]) => '<th scope="col">'+label+'</th>').join('')+'</tr></thead><tbody>'
     +rows.map(r => {
       const quiebre = r.inicio === EMBUDO_QUIEBRE;
-      const periodo = r.periodo || r.inicio+' – '+r.fin;
+      const periodo = r.periodo || fmtDate(r.inicio)+' – '+fmtDate(r.fin);
       return '<tr'+(quiebre ? ' class="embudo-quiebre"' : '')+'><th scope="row">'+embudoEscape(periodo)
         +(quiebre ? '<span class="embudo-badge">Inicio leads GHL</span>' : '')+'</th>'
         +columns.map(([,key,type]) => '<td>'+embudoFormato(r[key],type)+'</td>').join('')+'</tr>';
@@ -1434,7 +1434,7 @@ function ingest(texts, fromCache, cacheTs) {
     catch (err) { embudoError = err.message; }
 
     const allDates=[...RAW_MD,...RAW_CC,...RAW_CL,...RAW_C].map(r=>r.Fecha)
-      .concat(RAW_V.map(r=>r['Fecha Cierre']))
+      .concat(RAW_V.map(r=>r['Fecha Cierre']), RAW_ES.map(r=>r.inicio), RAW_MDIA.map(r=>r.Fecha))
       .filter(d=>d && d >= '2020-01-01' && d <= '2035-12-31').sort();
     DATA_FLOOR=allDates[0]||''; DATA_CEIL=allDates[allDates.length-1]||'';
     // Si el usuario no fijó un rango, seguir el máximo de los datos (extiende a

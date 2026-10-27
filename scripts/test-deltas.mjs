@@ -19,7 +19,7 @@ const code = extract('const NO_ASISTE =', '//  COMPUTE STATS')
 function harness() {
   const elements = {};
   const context = vm.createContext({
-    Date, RAW_MD: [], RAW_CC: [], RAW_CL: [], RAW_V: [], RAW_C: [],
+    Date, RAW_MD: [], RAW_CC: [], RAW_CL: [], RAW_V: [], RAW_C: [], RAW_ES: [], RAW_MDIA: [],
     DATA_FLOOR: '2026-01-01', DATA_CEIL: '2026-12-31',
     dateFrom: '2026-10-01', dateTo: '2026-10-31',
     document: { getElementById: id => elements[id] ||= {} },
@@ -120,12 +120,12 @@ const scenarios = [
     assert.equal(c.toDateAS(new Date(2026, 1, 20, 12)), '2026-02-20');
     assert.equal(c.toDateAS('2026-02-20'), '2026-02-20');
   }],
-  ['cobertura incluye las cinco hojas y excluye fechas implausibles', () => {
+  ['cobertura incluye las siete hojas y excluye fechas implausibles', () => {
     const { context: c } = harness();
     const coverage = extract('    const allDates=', '    // Si el usuario no fijó');
-    for (const sheet of ['RAW_MD', 'RAW_CC', 'RAW_CL', 'RAW_V', 'RAW_C']) {
-      for (const name of ['RAW_MD', 'RAW_CC', 'RAW_CL', 'RAW_V', 'RAW_C']) c[name] = [];
-      const key = sheet === 'RAW_V' ? 'Fecha Cierre' : 'Fecha';
+    for (const sheet of ['RAW_MD', 'RAW_CC', 'RAW_CL', 'RAW_V', 'RAW_C', 'RAW_ES', 'RAW_MDIA']) {
+      for (const name of ['RAW_MD', 'RAW_CC', 'RAW_CL', 'RAW_V', 'RAW_C', 'RAW_ES', 'RAW_MDIA']) c[name] = [];
+      const key = sheet === 'RAW_V' ? 'Fecha Cierre' : sheet === 'RAW_ES' ? 'inicio' : 'Fecha';
       c[sheet] = ['2019-12-31', '2020-01-01', '2035-12-31', '2036-01-01', '+046073-01-01', null].map(d => ({ [key]: d }));
       vm.runInContext(`{${coverage}}`, c);
       assert.equal(c.DATA_FLOOR, '2020-01-01');
