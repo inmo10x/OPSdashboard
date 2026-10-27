@@ -864,45 +864,51 @@ function renderVentas(s) {
 
   // Comisiones
   const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
-  const SIN = ['Guillermo'];
-  const cCol = {Ignacio:'var(--gold-deep)', Sebastian:'var(--blue)', Karim:'var(--green)'};
+  const commissionPalette = ['var(--gold-deep)', 'var(--blue)', 'var(--green)', 'var(--red)', 'var(--g2)'];
+  const commissionColors = new Map();
+  RAW_C.forEach(r => {
+    if (r.ComCloser > 0 && !commissionColors.has(r.Closer)) {
+      commissionColors.set(r.Closer, commissionPalette[commissionColors.size % commissionPalette.length]);
+    }
+  });
+  const commissionLabel = value => String(value).replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
 
-  // Totals per closer and confirmer
-  const comC = {};
+  // Totals from the sheet, with no person-specific exclusions or rates.
+  const comC = new Map();
   s.co.forEach(r => {
-    if (SIN.includes(r.Closer)) return;
-    comC[r.Closer] = (comC[r.Closer]||0) + (r.ComCloser||0);
+    comC.set(r.Closer, (comC.get(r.Closer)||0) + (r.ComCloser||0));
   });
   const totConf = s.co.reduce((acc,r)=>acc+(r.ComConf||0), 0);
-  const comRows = Object.entries(comC).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const comRows = [...comC].filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const totComC = comRows.reduce((acc,[,v])=>acc+v, 0);
+  // s.cc is RAW_CC filtered to the same period by computeCoreStats.
+  const confirmers = [...new Set(s.cc.map(r => r.Confirmer.trim()).filter(Boolean))];
+  const confirmerLabel = confirmers.length === 1 ? confirmers[0] : 'Call Confirmer';
+  const columns = comRows.map(([name, total]) => ({
+    name, total, color: commissionColors.get(name),
+    amount: r => r.Closer === name ? (r.ComCloser||0) : 0
+  }));
+  columns.push({name: confirmerLabel, total: totConf, color: 'var(--green)', amount: r => r.ComConf||0});
 
-  // Monthly breakdown: Ignacio, Sebastian, Claudia
+  // Monthly values use exactly the same columns as the header and totals.
   const monthlyMap = {};
   s.co.forEach(r => {
     if (!r.Fecha) return;
     const ym = r.Fecha.slice(0,7);
-    if (!monthlyMap[ym]) monthlyMap[ym] = {Ignacio:0, Sebastian:0, Claudia:0};
-    if (!SIN.includes(r.Closer) && r.ComCloser > 0) {
-      if (r.Closer === 'Ignacio')   monthlyMap[ym].Ignacio   += r.ComCloser;
-      if (r.Closer === 'Sebastian') monthlyMap[ym].Sebastian += r.ComCloser;
-    }
-    if (r.ComConf > 0) monthlyMap[ym].Claudia += r.ComConf;
+    if (!monthlyMap[ym]) monthlyMap[ym] = columns.map(() => 0);
+    columns.forEach((column, i) => { monthlyMap[ym][i] += column.amount(r); });
   });
   const monthKeys = Object.keys(monthlyMap).sort();
-  const totI  = monthKeys.reduce((a,m)=>a+monthlyMap[m].Ignacio,0);
-  const totSe = monthKeys.reduce((a,m)=>a+monthlyMap[m].Sebastian,0);
-  const totCl = monthKeys.reduce((a,m)=>a+monthlyMap[m].Claudia,0);
 
   const monthTableRows = monthKeys.map(ym => {
     const mn = MNAMES_C[ym.slice(5,7)] + ' ' + ym.slice(0,4);
     const d = monthlyMap[ym];
-    const rowTot = d.Ignacio + d.Sebastian + d.Claudia;
+    const rowTot = d.reduce((sum, value) => sum + value, 0);
     return '<tr>'
       +'<td style="padding:9px 10px;font-size:.68rem;color:var(--g2);font-weight:500;border-bottom:1px solid var(--border);">'+mn+'</td>'
-      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:var(--gold-deep);border-bottom:1px solid var(--border);">'+(d.Ignacio>0?fmtMoney(d.Ignacio):'—')+'</td>'
-      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:var(--blue);border-bottom:1px solid var(--border);">'+(d.Sebastian>0?fmtMoney(d.Sebastian):'—')+'</td>'
-      +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:var(--green);border-bottom:1px solid var(--border);">'+(d.Claudia>0?fmtMoney(d.Claudia):'—')+'</td>'
+      +columns.map((column, i) => '<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:'+column.color+';border-bottom:1px solid var(--border);">'+(d[i]!==0?fmtMoney(d[i]):'—')+'</td>' ).join('')
       +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.82rem;color:var(--g1);border-bottom:1px solid var(--border);">'+fmtMoney(rowTot)+'</td>'
       +'</tr>';
   }).join('');
@@ -920,18 +926,14 @@ function renderVentas(s) {
       +'<table style="width:100%;border-collapse:collapse;">'
       +'<thead><tr style="background:var(--bg);">'
       +'<th style="padding:8px 10px;text-align:left;font-size:.57rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Mes</th>'
-      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--gold-deep);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Ignacio</th>'
-      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--blue);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Sebastian</th>'
-      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--green);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Claudia</th>'
+      +columns.map(column => '<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:'+column.color+';text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">'+commissionLabel(column.name)+'</th>' ).join('')
       +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Total</th>'
       +'</tr></thead>'
       +'<tbody>'+monthTableRows+'</tbody>'
       +'<tfoot><tr style="background:var(--bg);">'
       +'<td style="padding:10px 10px;font-size:.65rem;font-weight:700;color:var(--g1);text-transform:uppercase;letter-spacing:.05em;">TOTAL</td>'
-      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:var(--gold-deep);">'+fmtMoney(totI)+'</td>'
-      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:var(--blue);">'+fmtMoney(totSe)+'</td>'
-      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:var(--green);">'+fmtMoney(totCl)+'</td>'
-      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--g1);">'+fmtMoney(totI+totSe+totCl)+'</td>'
+      +columns.map(column => '<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:'+column.color+';">'+fmtMoney(column.total)+'</td>' ).join('')
+      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--g1);">'+fmtMoney(totComC+totConf)+'</td>'
       +'</tr></tfoot>'
       +'</table>'
       +'</div></div>'
@@ -941,8 +943,8 @@ function renderVentas(s) {
       +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
       + comRows.map(([c,v]) =>
           '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-          +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+(cCol[c]||'var(--g2)')+';">'+c[0]+'</div>'
-          +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+c+'</div>'
+          +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+commissionColors.get(c)+';">'+commissionLabel(c[0])+'</div>'
+          +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+commissionLabel(c)+'</div>'
           +'<div style="font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div>'
           +'</div>'
         ).join('')
@@ -956,7 +958,7 @@ function renderVentas(s) {
       +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmer</div>'
       +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
       +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);">C</div>'
-      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">Claudia</div>'
+      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">' +commissionLabel(confirmerLabel)+'</div>'
       +'<div style="font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div>'
       +'</div>'
       +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
