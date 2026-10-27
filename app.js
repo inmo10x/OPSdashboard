@@ -15,6 +15,7 @@ const BONIFICACION_MENSUAL = [
 //  RAW DATA
 // ═══════════════════════════════════════════════
 let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
+let DATA_FLOOR = '', DATA_CEIL = '';
 
 // ═══════════════════════════════════════════════
 //  FILTERS
@@ -45,8 +46,7 @@ function buildMonthPresets() {
 function setPreset(p) {
   document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
   if(event&&event.target) event.target.classList.add('active');
-  const all=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
-  const minD=all[0]||'', maxD=all[all.length-1]||'';
+  const minD=DATA_FLOOR, maxD=DATA_CEIL;
   if(p.startsWith('m:')) {
     const ym=p.slice(2); const[y,m]=ym.split('-').map(Number);
     dateFrom=ym+'-01'; dateTo=new Date(y,m,0).toISOString().slice(0,10);
@@ -190,35 +190,51 @@ function computeCoreStats(inRangeFn) {
 //  PREVIOUS PERIOD COMPARISON
 // ═══════════════════════════════════════════════
 function computePrevStats() {
-  if (!dateFrom || !dateTo) return null;
-  const d1 = new Date(dateFrom + 'T12:00:00'), d2 = new Date(dateTo + 'T12:00:00');
+  if (!dateFrom || !dateTo || !DATA_FLOOR || !DATA_CEIL) return null;
+  const d1 = new Date(dateFrom + 'T00:00:00Z'), d2 = new Date(dateTo + 'T00:00:00Z');
   const duration = Math.round((d2 - d1) / 86400000);
-  const prevTo   = new Date(d1); prevTo.setDate(prevTo.getDate() - 1);
-  const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - duration);
+  if (!Number.isFinite(duration) || duration < 0) return null;
+  const prevTo = new Date(d1); prevTo.setUTCDate(prevTo.getUTCDate() - 1);
+  const prevFrom = new Date(prevTo);
+  const monthEnd = new Date(Date.UTC(d1.getUTCFullYear(), d1.getUTCMonth() + 1, 0));
+  // Un mes completo se compara con el mes calendario anterior, sin días prestados.
+  if (d1.getUTCDate() === 1 && d2.getTime() === monthEnd.getTime()) {
+    prevFrom.setUTCDate(1);
+  } else {
+    prevFrom.setUTCDate(prevFrom.getUTCDate() - duration);
+  }
   const pFrom = prevFrom.toISOString().slice(0,10);
   const pTo   = prevTo.toISOString().slice(0,10);
+  if (pFrom < DATA_FLOOR || pTo > DATA_CEIL) return null;
 
   const s = computeCoreStats(d => d && d >= pFrom && d <= pTo);
   return { ...s, sr: pct(s.totAs, s.totAg), cr: pct(s.totNuevas, s.totAs) };
 }
 
+function deltaHTML(text, cls, css, suffix, title='') {
+  return `<span class="${css} ${cls}"${title ? ` title="${title}"` : ''}>${text}${suffix && text !== 'sin período previo' ? ' <span class="vs">vs. período anterior</span>' : ''}</span>`;
+}
+
 // delta para valores absolutos → muestra % de cambio
-function delta(curr, prev) {
-  if (typeof prev !== 'number') return '';
-  if (prev === 0) return curr > 0 ? '<span class="kpi-delta up">▲ nuevo</span>' : '';
-  const d = Math.round((curr - prev) / Math.abs(prev) * 100);
-  if (Math.abs(d) < 1) return '<span class="kpi-delta flat">→ sin cambio</span>';
+function delta(curr, prev, css='kpi-delta', suffix=false) {
+  const html = (text, cls, title='') => deltaHTML(text, cls, css, suffix, title);
+  if (typeof prev !== 'number') return html('sin período previo', 'flat');
+  if (prev === 0) return curr > 0 ? html('▲ nuevo', 'up') : html('sin cambio', 'flat');
+  const exact = (curr - prev) / Math.abs(prev) * 100;
+  const d = Math.round(exact);
+  if (d === 0) return html('sin cambio', 'flat');
   const cls = d > 0 ? 'up' : 'down', arrow = d > 0 ? '▲' : '▼';
-  return `<span class="kpi-delta ${cls}">${arrow} ${Math.abs(d)}% vs ant.</span>`;
+  if (Math.abs(exact) >= 1000) return html(`${arrow} >${Math.floor(Math.abs(exact)/100)}×`, cls, `${exact}%`);
+  return html(`${arrow} ${Math.abs(d)}%${suffix ? '' : ' vs ant.'}`, cls);
 }
 
 // delta para tasas/porcentajes → muestra diferencia en pp
-function deltaP(curr, prev) {
-  if (typeof prev !== 'number') return '';
-  const d = curr - prev;
-  if (Math.abs(d) < 1) return '<span class="kpi-delta flat">→ igual</span>';
+function deltaP(curr, prev, css='kpi-delta', suffix=false) {
+  if (typeof prev !== 'number') return deltaHTML('sin período previo', 'flat', css, suffix);
+  const d = Math.round(curr - prev);
+  if (d === 0) return deltaHTML('sin cambio', 'flat', css, suffix);
   const cls = d > 0 ? 'up' : 'down', arrow = d > 0 ? '▲' : '▼';
-  return `<span class="kpi-delta ${cls}">${arrow} ${Math.abs(d)}pp vs ant.</span>`;
+  return deltaHTML(`${arrow} ${Math.abs(d)}pp${suffix ? '' : ' vs ant.'}`, cls, css, suffix);
 }
 
 // ═══════════════════════════════════════════════
@@ -343,13 +359,11 @@ function renderKPIs(s) {
   document.getElementById('k-close-sub').textContent = s.totNuevas+'/'+s.totAs+' nuevas';
 
   // Deltas vs período anterior
-  if (p) {
-    document.getElementById('k-ventas-delta').innerHTML     = delta(s.totNuevas, p.totNuevas);
-    document.getElementById('k-renov-delta').innerHTML      = delta(s.totRenov,  p.totRenov);
-    document.getElementById('k-agendas-delta').innerHTML    = delta(s.totAg,     p.totAg);
-    document.getElementById('k-show-delta').innerHTML       = deltaP(sr,         p.sr);
-    document.getElementById('k-close-delta').innerHTML      = deltaP(cr,         p.cr);
-  }
+  document.getElementById('k-ventas-delta').innerHTML     = delta(s.totNuevas, p&&p.totNuevas);
+  document.getElementById('k-renov-delta').innerHTML      = delta(s.totRenov,  p&&p.totRenov);
+  document.getElementById('k-agendas-delta').innerHTML    = delta(s.totAg,     p&&p.totAg);
+  document.getElementById('k-show-delta').innerHTML       = deltaP(sr,         p&&p.sr);
+  document.getElementById('k-close-delta').innerHTML      = deltaP(cr,         p&&p.cr);
 }
 
 // ═══════════════════════════════════════════════
@@ -401,17 +415,11 @@ function renderOverview(s) {
     aovByW[w].venta += r.Venta; aovByW[w].cli.add(r.Cliente);
   });
   const wAOV = Object.keys(aovByW).sort().map(w => Math.round(aovByW[w].venta / aovByW[w].cli.size));
-  const dHTML = (curr, prev, fmt) => {
-    if (!p || typeof prev !== 'number' || prev === 0) return '<span class="ov-kpi-delta up">▲ nuevo <span class="vs">vs. período anterior</span></span>';
-    const d = Math.round((curr-prev)/Math.abs(prev)*100);
-    const up = d >= 0;
-    return `<span class="ov-kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(d)}% <span class="vs">vs. período anterior</span></span>`;
-  };
   const cards = [
-    {lbl:'Cash Collected',  val:fmtMoney(s.totCash),  delta:dHTML(s.totCash,  p&&p.totCash),  spark:wCash},
-    {lbl:'Ventas Totales',  val:fmtMoney(s.totVenta), delta:dHTML(s.totVenta, p&&p.totVenta), spark:wVenta},
-    {lbl:'Ticket Prom.',    val:fmtMoney(s.ticket),   delta:dHTML(s.ticket,   p&&p.ticket),   spark:wTicket},
-    {lbl:'AOV',             val:fmtMoney(s.aov),      delta:dHTML(s.aov,      p&&p.aov),      spark:wAOV},
+    {lbl:'Cash Collected',  val:fmtMoney(s.totCash),  delta:delta(s.totCash, p&&p.totCash, 'ov-kpi-delta', true),  spark:wCash},
+    {lbl:'Ventas Totales',  val:fmtMoney(s.totVenta), delta:delta(s.totVenta, p&&p.totVenta, 'ov-kpi-delta', true), spark:wVenta},
+    {lbl:'Ticket Prom.',    val:fmtMoney(s.ticket),   delta:delta(s.ticket, p&&p.ticket, 'ov-kpi-delta', true),   spark:wTicket},
+    {lbl:'AOV',             val:fmtMoney(s.aov),      delta:delta(s.aov, p&&p.aov, 'ov-kpi-delta', true),      spark:wAOV},
   ];
   document.getElementById('ov-kpis').innerHTML = cards.map(c => `
     <div class="ov-kpi">
@@ -1246,6 +1254,9 @@ function ingest(texts, fromCache, cacheTs) {
       if (val instanceof Date) {
         return val.getFullYear()+'-'+String(val.getMonth()+1).padStart(2,'0')+'-'+String(val.getDate()).padStart(2,'0');
       }
+      if (typeof val === 'number' && val >= 20000 && val <= 60000) {
+        return new Date(Date.UTC(1899,11,30) + val * 86400000).toISOString().slice(0,10);
+      }
       return toDate(String(val));
     }
 
@@ -1303,11 +1314,14 @@ function ingest(texts, fromCache, cacheTs) {
         LeadMail: String(r['Lead Mail']||''),
       })).filter(r => r.FechaVenc && r.Monto > 0);
 
-    const allDates=[...RAW_MD,...RAW_CC,...RAW_C].map(r=>r.Fecha).filter(Boolean).sort();
+    const allDates=[...RAW_MD,...RAW_CC,...RAW_CL,...RAW_C].map(r=>r.Fecha)
+      .concat(RAW_V.map(r=>r['Fecha Cierre']))
+      .filter(d=>d && d >= '2020-01-01' && d <= '2035-12-31').sort();
+    DATA_FLOOR=allDates[0]||''; DATA_CEIL=allDates[allDates.length-1]||'';
     // Si el usuario no fijó un rango, seguir el máximo de los datos (extiende a
     // los días nuevos que llegan en la revalidación SWR). Si filtró, se respeta.
     if(allDates.length && !userFiltered) {
-      dateFrom=allDates[0]; dateTo=allDates[allDates.length-1];
+      dateFrom=DATA_FLOOR; dateTo=DATA_CEIL;
       document.getElementById('date-from').value=dateFrom;
       document.getElementById('date-to').value=dateTo;
     }
