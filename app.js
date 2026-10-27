@@ -4,6 +4,13 @@
 // Meta mensual de cash del equipo (USD) — para "Meta vs. realizado"
 const META_MENSUAL_USD = 40000;
 
+// Bonificación mensual por contrato: % del cash cobrado del mes.
+// Estas personas no aparecen en las hojas de datos, por eso se configuran acá.
+const BONIFICACION_MENSUAL = [
+  { nombre: 'Elber',    pct: 0.005 },
+  { nombre: 'Patricia', pct: 0.005 },
+];
+
 // ═══════════════════════════════════════════════
 //  RAW DATA
 // ═══════════════════════════════════════════════
@@ -303,7 +310,6 @@ function renderAll() {
   renderRatesChart(s);
   renderConfirmer(s);
   if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
-  if(document.getElementById('page-bonos').classList.contains('active')) renderBonos(s);
 }
 
 function renderRangeLabel() {
@@ -838,6 +844,59 @@ function renderVentas(s) {
     <div class="kpi gn"><div class="kpi-lbl">Cobrado</div><div class="kpi-val">${fmtMoney(totC)}</div><div class="kpi-sub">${pct(totC,totV)}% del total</div></div>
     <div class="kpi rd"><div class="kpi-lbl">Pendiente</div><div class="kpi-val">${fmtMoney(totP)}</div><div class="kpi-sub">${pct(totP,totV)}% por cobrar</div></div>`;
 
+  // Se calcula desde cobros aunque no haya ventas en el período.
+  const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+  const commissionLabel = value => String(value).replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+  const paymentEl = document.getElementById('bonificacion-mensual-wrap');
+  paymentEl.innerHTML = '';
+  if (BONIFICACION_MENSUAL.length) {
+    const cashByMonth = {};
+    s.co.forEach(r => {
+      if (!r.Fecha) return;
+      const ym = r.Fecha.slice(0,7);
+      cashByMonth[ym] = (cashByMonth[ym] || 0) + r.Monto;
+    });
+    const paymentMonths = Object.keys(cashByMonth).sort();
+    const totalCash = paymentMonths.reduce((sum, ym) => sum + cashByMonth[ym], 0);
+    const paymentColumns = BONIFICACION_MENSUAL.map(person => ({
+      ...person, total: totalCash * person.pct, color: 'var(--gold-deep)'
+    }));
+    const monthlyPaymentRows = paymentMonths.map(ym => {
+      const mn = MNAMES_C[ym.slice(5,7)] + ' ' + ym.slice(0,4);
+      const d = paymentColumns.map(column => cashByMonth[ym] * column.pct);
+      const rowTot = d.reduce((sum, value) => sum + value, 0);
+      return '<tr>'
+        +'<td style="padding:9px 10px;font-size:.68rem;color:var(--g2);font-weight:500;border-bottom:1px solid var(--border);">'+mn+'</td>'
+        +paymentColumns.map((column, i) => '<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:600;font-size:.82rem;color:'+column.color+';border-bottom:1px solid var(--border);">'+(d[i]!==0?fmtMoney(d[i]):'—')+'</td>' ).join('')
+        +'<td style="padding:9px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.82rem;color:var(--g1);border-bottom:1px solid var(--border);">'+fmtMoney(rowTot)+'</td>'
+        +'</tr>';
+    }).join('');
+    paymentEl.innerHTML = '<div style="padding:0 16px 16px;">'
+      +'<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px;">'
+      +'<div style="padding:11px 14px;background:var(--ink);display:flex;align-items:center;gap:8px;">'
+      +'<span style="font-family:\'Jost\',sans-serif;font-weight:700;font-size:.88rem;color:#fff;">Bonificación mensual</span>'
+      +'<span style="font-size:.58rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;margin-left:auto;">USD</span>'
+      +'</div>'
+      +'<div style="overflow-x:auto;">'
+      +'<table style="width:100%;border-collapse:collapse;">'
+      +'<thead><tr style="background:var(--bg);">'
+      +'<th style="padding:8px 10px;text-align:left;font-size:.57rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Mes</th>'
+      +paymentColumns.map(column => '<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:'+column.color+';text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">'+commissionLabel(column.nombre)+'</th>' ).join('')
+      +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Total</th>'
+      +'</tr></thead>'
+      +'<tbody>'+monthlyPaymentRows+'</tbody>'
+      +'<tfoot><tr style="background:var(--bg);">'
+      +'<td style="padding:10px 10px;font-size:.65rem;font-weight:700;color:var(--g1);text-transform:uppercase;letter-spacing:.05em;">TOTAL</td>'
+      +paymentColumns.map(column => '<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:.95rem;color:'+column.color+';">'+fmtMoney(column.total)+'</td>' ).join('')
+      +'<td style="padding:10px 10px;text-align:right;font-family:\'Jost\',sans-serif;font-weight:700;font-size:1rem;color:var(--g1);">'+fmtMoney(paymentColumns.reduce((sum, column) => sum + column.total, 0))+'</td>'
+      +'</tr></tfoot>'
+      +'</table>'
+      +'</div></div>'
+      +'</div>';
+  }
+
   if(s.v.length===0){
     document.getElementById('vtable-wrap').innerHTML='<div class="no-data"><span>💰</span>Sin ventas en este período</div>';
     document.getElementById('fc-list').innerHTML='';
@@ -863,7 +922,6 @@ function renderVentas(s) {
     </div>`;
 
   // Comisiones
-  const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
   const commissionPalette = ['var(--gold-deep)', 'var(--blue)', 'var(--green)', 'var(--red)', 'var(--g2)'];
   const commissionColors = new Map();
   RAW_C.forEach(r => {
@@ -871,9 +929,6 @@ function renderVentas(s) {
       commissionColors.set(r.Closer, commissionPalette[commissionColors.size % commissionPalette.length]);
     }
   });
-  const commissionLabel = value => String(value).replace(/[&<>"']/g, c => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-  }[c]));
 
   // Totals from the sheet, with no person-specific exclusions or rates.
   const comC = new Map();
@@ -992,137 +1047,6 @@ function renderTipo(s) {
 }
 
 // ═══════════════════════════════════════════════
-//  BONOS
-// ═══════════════════════════════════════════════
-function renderBonos(s) {
-  const MNAMES_B = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
-  const BONO_CLOSERS = ['Ignacio','Sebastian','Karim'];
-  const cColB = {Ignacio:'var(--gold-deep)', Sebastian:'var(--blue)', Karim:'var(--green)'};
-  const cavCls = {Ignacio:'cav-I', Sebastian:'cav-S', Karim:'cav-K'};
-
-  // All months present in filtered data
-  const allMonths = [...new Set([
-    ...s.co.map(r => r.Fecha ? r.Fecha.slice(0,7) : null),
-    ...s.v.map(r => r['Fecha Cierre'] ? r['Fecha Cierre'].slice(0,7) : null)
-  ].filter(Boolean))].sort();
-
-  let html = '';
-
-  BONO_CLOSERS.forEach(closer => {
-    const hasActivity = s.co.some(r=>r.Closer===closer) || s.v.some(r=>r.Closer===closer);
-    if (!hasActivity) return;
-
-    let monthsHtml = '';
-    let totContado=0, totVolumen=0, totCantidad=0;
-
-    allMonths.forEach(ym => {
-      const mn = MNAMES_B[ym.slice(5,7)] + ' ' + ym.slice(0,4);
-
-      // Cash cobrado en el mes por este closer
-      const cashMes = s.co.filter(r=>r.Closer===closer && r.Fecha && r.Fecha.slice(0,7)===ym)
-                          .reduce((a,r)=>a+r.Monto, 0);
-
-      // Ventas cerradas en el mes con al menos algún cobro · solo clientes nuevos (Bono cantidad)
-      const ventasCerradas = s.v.filter(r=>
-        r.Closer===closer &&
-        r['Fecha Cierre'] && r['Fecha Cierre'].slice(0,7)===ym &&
-        r.Cobrado > 0 &&
-        !r.Tipo.toLowerCase().includes('renov')
-      ).length;
-
-      // Ventas pagadas 100% al contado · clientes nuevos únicamente (Bono pago contado)
-      // Se excluyen renovaciones según columna Notas de la hoja VENTAS
-      const ventasContado = s.v.filter(r=>
-        r.Closer===closer &&
-        r['Fecha Cierre'] && r['Fecha Cierre'].slice(0,7)===ym &&
-        r.Pendiente <= 0.01 && r.Cobrado > 0 &&
-        !r.Tipo.toLowerCase().includes('renov')
-      ).length;
-
-      // Bono 1: pago completo al contado · $30 c/u
-      const bonoContado  = ventasContado * 30;
-      // Bono 2: volumen · $250 por tramo de $15K
-      const tramosVol    = Math.floor(cashMes / 15000);
-      const bonoVolumen  = tramosVol * 250;
-      // Bono 3: cantidad · $500 por cada 10 ventas cerradas y cobradas
-      const tramosVta    = Math.floor(ventasCerradas / 10);
-      const bonoCantidad = tramosVta * 500;
-      const mesBono      = bonoContado + bonoVolumen + bonoCantidad;
-
-      totContado  += bonoContado;
-      totVolumen  += bonoVolumen;
-      totCantidad += bonoCantidad;
-
-      if (cashMes===0 && ventasCerradas===0) return;
-
-      const fColor = col => mesBono>0 ? col : 'var(--g4)';
-      monthsHtml += `
-        <div style="border-bottom:1px solid var(--border);padding:12px 14px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <span style="font-family:'Jost',sans-serif;font-weight:600;font-size:.82rem;color:var(--g1);">${mn}</span>
-            <span style="font-family:'Jost',sans-serif;font-weight:700;font-size:1rem;color:${mesBono>0?cColB[closer]:'var(--g4)'};">${mesBono>0?'$'+Math.round(mesBono):'Sin bono'}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-            <div style="background:var(--bg);border-radius:6px;padding:9px 10px;text-align:center;">
-              <div style="font-size:.54rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Pago Contado</div>
-              <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:1.05rem;color:${bonoContado>0?'var(--green)':'var(--g4)'};">${bonoContado>0?'+$'+bonoContado:'—'}</div>
-              <div style="font-size:.54rem;color:var(--g4);margin-top:2px;">${ventasContado} venta${ventasContado!==1?'s':''} × $30</div>
-            </div>
-            <div style="background:var(--bg);border-radius:6px;padding:9px 10px;text-align:center;">
-              <div style="font-size:.54rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Volumen</div>
-              <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:1.05rem;color:${bonoVolumen>0?'var(--gold-deep)':'var(--g4)'};">${bonoVolumen>0?'+$'+bonoVolumen:'—'}</div>
-              <div style="font-size:.54rem;color:var(--g4);margin-top:2px;">${tramosVol} tramo${tramosVol!==1?'s':''} × $15K</div>
-            </div>
-            <div style="background:var(--bg);border-radius:6px;padding:9px 10px;text-align:center;">
-              <div style="font-size:.54rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Cant. Ventas</div>
-              <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:1.05rem;color:${bonoCantidad>0?'var(--blue)':'var(--g4)'};">${bonoCantidad>0?'+$'+bonoCantidad:'—'}</div>
-              <div style="font-size:.54rem;color:var(--g4);margin-top:2px;">${ventasCerradas} venta${ventasCerradas!==1?'s':''} · ${tramosVta} × 10</div>
-            </div>
-          </div>
-        </div>`;
-    });
-
-    const grandTotal = totContado + totVolumen + totCantidad;
-
-    html += `
-    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--sh);margin:0 16px 14px;overflow:hidden;">
-      <div style="background:var(--ink);padding:14px;display:flex;align-items:center;gap:12px;">
-        <div class="cav ${cavCls[closer]}" style="width:40px;height:40px;font-size:1.1rem;">${closer[0]}</div>
-        <div style="flex:1;">
-          <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:1rem;color:#fff;">${closer}</div>
-          <div style="font-size:.58rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;">Closer</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:1.6rem;color:${grandTotal>0?'var(--gold-l)':'var(--g4)'};">${grandTotal>0?'$'+Math.round(grandTotal):'$0'}</div>
-          <div style="font-size:.54rem;color:var(--g4);">Total bonos período</div>
-        </div>
-      </div>
-      ${monthsHtml || '<div style="padding:20px;text-align:center;font-size:.7rem;color:var(--g4);">Sin actividad en el período</div>'}
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:2px solid var(--border2);background:var(--bg);">
-        <div style="padding:10px 8px;text-align:center;border-right:1px solid var(--border);">
-          <div style="font-size:.52rem;color:var(--g4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Pago Contado</div>
-          <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:.95rem;color:${totContado>0?'var(--green)':'var(--g4)'};">${totContado>0?'$'+Math.round(totContado):'$0'}</div>
-        </div>
-        <div style="padding:10px 8px;text-align:center;border-right:1px solid var(--border);">
-          <div style="font-size:.52rem;color:var(--g4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Volumen</div>
-          <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:.95rem;color:${totVolumen>0?'var(--gold-deep)':'var(--g4)'};">${totVolumen>0?'$'+Math.round(totVolumen):'$0'}</div>
-        </div>
-        <div style="padding:10px 8px;text-align:center;">
-          <div style="font-size:.52rem;color:var(--g4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Cant. Ventas</div>
-          <div style="font-family:'Jost',sans-serif;font-weight:700;font-size:.95rem;color:${totCantidad>0?'var(--blue)':'var(--g4)'};">${totCantidad>0?'$'+Math.round(totCantidad):'$0'}</div>
-        </div>
-      </div>
-      <div style="margin:12px 14px;padding:10px 13px;border-left:3px solid var(--g5);background:var(--bg);border-radius:0 6px 6px 0;">
-        <div style="font-size:.57rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">⚙ Excelencia Operativa · Discrecional</div>
-        <div style="font-size:.64rem;color:var(--g3);line-height:1.5;">USD 150 si cumple 100% reportabilidad diaria, CRM completo y 0 reclamos formales. Requiere validación manual del período.</div>
-      </div>
-    </div>`;
-  });
-
-  document.getElementById('bonos-list').innerHTML = html || '<div class="no-data"><span>🏆</span>Sin datos para calcular bonos</div>';
-}
-
-// ═══════════════════════════════════════════════
 //  CLOSER SEARCH
 // ═══════════════════════════════════════════════
 function filterClosers(q) {
@@ -1161,7 +1085,6 @@ function showPage(id, el) {
   if (!RAW_C.length) return;
   const s = computeStats();
   if (id === 'ventas') renderVentas(s);
-  if (id === 'bonos')  renderBonos(s);
   // Chart.js no puede medir canvas ocultos (quedan en 0×0 y resize() no los
   // recupera): destruir y re-crear los charts de la página recién mostrada.
   const PAGE_CHARTS = {

@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <!-- ?v= — bump en cada deploy para invalidar caché del navegador -->
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 
@@ -45,7 +45,6 @@
     <button class="sb-item" data-page="closers"   onclick="showPage('closers',this)"><span class="sb-ico">👤</span>Closers</button>
     <button class="sb-item" data-page="confirmer" onclick="showPage('confirmer',this)"><span class="sb-ico">📞</span>Confirmer</button>
     <button class="sb-item" data-page="ventas"    onclick="showPage('ventas',this)"><span class="sb-ico">💰</span>Ventas</button>
-    <button class="sb-item" data-page="bonos"     onclick="showPage('bonos',this)"><span class="sb-ico">🏆</span>Bonos</button>
   </nav>
   <div class="sb-foot">Agencia Convierte SPA</div>
 </aside>
@@ -82,7 +81,6 @@
     <button class="tab" role="tab" aria-selected="false" data-page="closers"   aria-controls="page-closers"   onclick="showPage('closers',this)">Closers</button>
     <button class="tab" role="tab" aria-selected="false" data-page="confirmer" aria-controls="page-confirmer" onclick="showPage('confirmer',this)">Confirmer</button>
     <button class="tab" role="tab" aria-selected="false" data-page="ventas"    aria-controls="page-ventas"    onclick="showPage('ventas',this)">Ventas</button>
-    <button class="tab" role="tab" aria-selected="false" data-page="bonos"     aria-controls="page-bonos"     onclick="showPage('bonos',this)">Bonos</button>
   </div>
 </div>
 
@@ -212,25 +210,12 @@
   <div class="divider"></div>
   <div class="sec"><div class="sec-ico">💼</div><span class="sec-title">Comisiones del Período</span></div>
   <div id="comisiones-wrap" style="padding:0 16px 16px;"></div>
-</div>
-
-<!-- ═══════════════ PAGE: BONOS ═══════════════ -->
-<div id="page-bonos" class="page">
-  <div class="sec">
-    <div class="sec-ico">🏆</div>
-    <span class="sec-title">Bonos por Rendimiento</span>
-    <span class="sec-sub">Anexo N°1</span>
-  </div>
-  <div class="alert info" style="margin:0 16px 16px;">
-    <div class="alert-title">📋 Condiciones del Anexo N°1</div>
-    Bonos acumulables calculados sobre ventas efectivamente cobradas. El bono de Excelencia Operativa ($150) tiene carácter discrecional y requiere validación manual.
-  </div>
-  <div id="bonos-list"><!-- JS --></div>
+  <div id="bonificacion-mensual-wrap"><!-- JS --></div>
 </div>
 
 </div><!-- /main -->
 </div><!-- /shell -->
 
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

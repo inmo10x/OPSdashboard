@@ -59,7 +59,7 @@ html, body { background:var(--white); color:var(--g1); font-family:'DM Sans',san
 .header, .kpi, .cc, .ccard, .conf-stat, .strip-item,
 .vtable-wrap, .alert, .closer-search input,
 canvas, .tab, .preset, .date-input, .export-btn,
-.bono-card, .pipe-bar {
+.pipe-bar {
   transition: background .25s, border-color .25s, color .25s, box-shadow .25s;
 }
 
