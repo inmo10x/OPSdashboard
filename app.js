@@ -14,7 +14,7 @@ const BONIFICACION_MENSUAL = [
 // ═══════════════════════════════════════════════
 //  RAW DATA
 // ═══════════════════════════════════════════════
-let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [];
+let RAW_MD = [], RAW_CC = [], RAW_V = [], RAW_C = [], RAW_CL = [], RAW_PC = [], RAW_ES = [], RAW_MDIA = [];
 let DATA_FLOOR = '', DATA_CEIL = '';
 
 // ═══════════════════════════════════════════════
@@ -326,6 +326,7 @@ function renderAll() {
   renderRatesChart(s);
   renderConfirmer(s);
   if(document.getElementById('page-ventas').classList.contains('active')) renderVentas(s);
+  if(document.getElementById('page-embudo').classList.contains('active')) renderEmbudo();
 }
 
 function renderRangeLabel() {
@@ -1079,6 +1080,117 @@ function exportPDF() {
 // ═══════════════════════════════════════════════
 //  INTERACTIONS
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  EMBUDO
+// ═══════════════════════════════════════════════
+const EMBUDO_QUIEBRE = '2026-07-20';
+let embudoModo = 'semanal', embudoError = '';
+
+function embudoFecha(value) { return typeof value === 'string' ? value.slice(0,10) : ''; }
+function embudoNumero(value) {
+  if (value === '' || value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function embudoDivision(a, b) {
+  return a == null || b == null || b === 0 ? null : a / b;
+}
+function parseEmbudo(rows, hoy = new Date().toISOString().slice(0,10)) {
+  if (!rows.length) return [];
+  const keys = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k.startsWith('Leads ('))))];
+  if (keys.length !== 1) throw new Error('Embudo: se esperaba una única columna que empiece con "Leads (". Revisá la hoja EMBUDO_SEMANAL.');
+  return rows.map(r => ({
+    inicio: embudoFecha(r['Semana inicio (lun)']), fin: embudoFecha(r['Semana fin (dom)']),
+    mes: embudoNumero(r.Mes), inversion: embudoNumero(r['Inversión Meta (USD)']),
+    bookings: embudoNumero(r[keys[0]]), agendas: embudoNumero(r.Agendas),
+    venta: embudoNumero(r['Agendas de venta (CRM)']), confirmadas: embudoNumero(r['Citas confirmadas']),
+    asistencias: embudoNumero(r['Reuniones realizadas (1ª con cada lead)']), cierres: embudoNumero(r['Cierres nuevos']),
+    cpl: embudoNumero(r['CPL (USD)']), costoVenta: embudoNumero(r['Costo por agenda de venta (USD)']),
+    show: embudoNumero(r['% show (realizadas/confirmadas)']), cierre: embudoNumero(r['% cierre (cierres/realizadas)']),
+    costoAsistencia: embudoNumero(r['Costo por reunión']), cac: embudoNumero(r['CAC (USD)']),
+  })).filter(r => r.inicio && !(r.inicio > hoy && !r.inversion && !r.agendas && !r.bookings))
+    .map(r => ({...r, qb: r.inicio >= EMBUDO_QUIEBRE ? embudoDivision(r.bookings, r.agendas) : null}))
+    .sort((a,b) => a.inicio.localeCompare(b.inicio));
+}
+function parseMetaDiario(rows) {
+  return rows.map(r => ({
+    Fecha: embudoFecha(r.Fecha), Inversion: embudoNumero(r['Inversión Meta (USD)']),
+    Leads: embudoNumero(r['Leads (GHL)']), AgendasVenta: embudoNumero(r['Agendas de venta (CRM)']),
+    Fuente: String(r.Fuente || ''), Nota: String(r.Nota || ''),
+  }));
+}
+function embudoMensual(rows) {
+  const groups = new Map();
+  rows.forEach(r => {
+    // El mes lo asigna la hoja; ajustar el año en semanas que cruzan diciembre.
+    let year = Number(r.inicio.slice(0,4));
+    if (r.inicio.slice(5,7) === '12' && r.mes === 1) year++;
+    if (r.inicio.slice(5,7) === '01' && r.mes === 12) year--;
+    const key = year+'-'+String(r.mes).padStart(2,'0');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  return [...groups].sort(([a],[b]) => a.localeCompare(b)).map(([periodo, weeks]) => {
+    const r = {periodo};
+    // Una suma incompleta sigue siendo ausencia, no un total artificialmente bajo.
+    ['inversion','bookings','agendas','venta','confirmadas','asistencias','cierres'].forEach(k => {
+      r[k] = weeks.some(w => w[k] == null) ? null : weeks.reduce((sum,w) => sum+w[k], 0);
+    });
+    r.cpl = embudoDivision(r.inversion, r.bookings);
+    r.qb = weeks.every(w => w.inicio >= EMBUDO_QUIEBRE) ? embudoDivision(r.bookings, r.agendas) : null;
+    r.costoVenta = embudoDivision(r.inversion, r.venta);
+    r.show = embudoDivision(r.asistencias, r.confirmadas);
+    r.cierre = embudoDivision(r.cierres, r.asistencias);
+    r.costoAsistencia = embudoDivision(r.inversion, r.asistencias);
+    r.cac = embudoDivision(r.inversion, r.cierres);
+    return r;
+  });
+}
+function embudoEscape(value) {
+  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function embudoFormato(value, type) {
+  if (value == null || !Number.isFinite(value)) return '<span class="embudo-nd">n/d</span>';
+  if (type === 'money') return fmtMoney(value);
+  if (type === 'pct') return Math.round(value*100)+'%';
+  if (type === 'ratio') return value.toFixed(2).replace('.',',');
+  return String(value);
+}
+function setEmbudoModo(modo) {
+  embudoModo = modo === 'mensual' ? 'mensual' : 'semanal';
+  renderEmbudo();
+}
+function renderEmbudo() {
+  document.querySelectorAll('[data-embudo-modo]').forEach(b => {
+    const on = b.dataset.embudoModo === embudoModo;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  const wrap = document.getElementById('embudo-table-wrap');
+  if (embudoError) {
+    wrap.innerHTML = '<p role="alert">'+embudoEscape(embudoError)+'</p>';
+    return;
+  }
+  const weeks = RAW_ES.filter(r => inRange(r.inicio));
+  const rows = embudoModo === 'mensual' ? embudoMensual(weeks) : weeks;
+  if (!rows.length) { wrap.innerHTML = '<div class="no-data">Sin datos de embudo en este período</div>'; return; }
+  const columns = [
+    ['Inversión','inversion','money'], ['Q bookings','bookings'], ['$ Q booking','cpl','money'],
+    ['QB/B','qb','ratio'], ['Agendas de venta','venta'], ['Costo por agenda de venta','costoVenta','money'],
+    ['Asistencias','asistencias'], ['% asistencia','show','pct'], ['Cierres','cierres'],
+    ['% cierre','cierre','pct'], ['Costo por asistencia','costoAsistencia','money'], ['CAC','cac','money'],
+  ];
+  wrap.innerHTML = '<table class="embudo-table"><thead><tr><th scope="col">Período</th>'
+    +columns.map(([label]) => '<th scope="col">'+label+'</th>').join('')+'</tr></thead><tbody>'
+    +rows.map(r => {
+      const quiebre = r.inicio === EMBUDO_QUIEBRE;
+      const periodo = r.periodo || r.inicio+' – '+r.fin;
+      return '<tr'+(quiebre ? ' class="embudo-quiebre"' : '')+'><th scope="row">'+embudoEscape(periodo)
+        +(quiebre ? '<span class="embudo-badge">Inicio leads GHL</span>' : '')+'</th>'
+        +columns.map(([,key,type]) => '<td>'+embudoFormato(r[key],type)+'</td>').join('')+'</tr>';
+    }).join('')+'</tbody></table>';
+}
+
 function showPage(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   // Sincronizar ambas navegaciones (sidebar desktop + tabs móvil) por data-page
@@ -1090,6 +1202,7 @@ function showPage(id, el) {
   document.querySelectorAll('.sb-item').forEach(b=> b.classList.toggle('active', b.dataset.page === id));
   document.getElementById('page-'+id).classList.add('active');
   window.scrollTo(0,0);
+  if (id === 'embudo') renderEmbudo();
   if (!RAW_C.length) return;
   const s = computeStats();
   if (id === 'ventas') renderVentas(s);
@@ -1313,6 +1426,12 @@ function ingest(texts, fromCache, cacheTs) {
         Estado: String(r['Estado']||''),
         LeadMail: String(r['Lead Mail']||''),
       })).filter(r => r.FechaVenc && r.Monto > 0);
+
+    RAW_MDIA = parseMetaDiario(texts['META_DIARIO'] || []);
+    RAW_ES = [];
+    embudoError = '';
+    try { RAW_ES = parseEmbudo(texts['EMBUDO_SEMANAL'] || []); }
+    catch (err) { embudoError = err.message; }
 
     const allDates=[...RAW_MD,...RAW_CC,...RAW_CL,...RAW_C].map(r=>r.Fecha)
       .concat(RAW_V.map(r=>r['Fecha Cierre']))

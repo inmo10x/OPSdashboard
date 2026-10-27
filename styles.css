@@ -587,3 +587,16 @@ canvas { max-width:100%; }
 /* Contenedor de charts: Chart.js responsive necesita un padre posicionado con altura fija */
 .chart-box { position:relative; width:100%; }
 .chart-box canvas { max-width:100%; }
+
+/* Embudo comercial */
+.embudo-controls { display:flex; gap:8px; padding:0 16px 12px; }
+.embudo-nota { margin:0 16px 12px; color:var(--g3); font-size:.75rem; line-height:1.5; }
+.embudo-scroll { max-width:100%; overflow-x:auto; padding:0 16px 16px; }
+.embudo-table { width:100%; min-width:1250px; border-collapse:collapse; font-size:.72rem; }
+.embudo-table th, .embudo-table td { padding:12px 10px; text-align:right; border-bottom:1px solid var(--border); }
+.embudo-table thead th { color:var(--g3); background:var(--bg); }
+.embudo-table th:first-child { text-align:left; white-space:nowrap; }
+.embudo-table tbody th { font-weight:500; }
+.embudo-nd { color:var(--g4); }
+.embudo-quiebre > * { border-top:2px solid var(--gold-deep); }
+.embudo-badge { display:block; color:var(--gold-deep); font-size:.65rem; margin-top:4px; }
