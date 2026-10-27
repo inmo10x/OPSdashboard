@@ -10,7 +10,8 @@ function extract(start, end) {
   assert.ok(from >= 0 && to > from, `No se encontró ${start}`);
   return source.slice(from, to);
 }
-const code = extract('const NO_ASISTE =', '//  COMPUTE STATS')
+const code = extract('const META_MENSUAL_USD', '//  RAW DATA')
+  + extract('const esAsistencia =', '//  COMPUTE STATS')
   + extract('function pct(', '// ═════════')
   + extract('function renderKPIs(', '// ═════════')
   + extract('function renderOverview(', '  // ── Ranking de closers') + '\n}'

@@ -8,6 +8,9 @@ const META_MENSUAL_USD = 40000;
 const UMBRAL_ASISTENCIAS_JUZGABLES = 10;
 const UMBRAL_BAJA_ACTIVIDAD = 6;
 
+// Eventos que cuentan como asistencia a una reunión.
+const EVENTOS_ASISTENCIA = ['asistencia','cierre','perdido','seguimiento'];
+
 // Bonificación mensual por contrato: % del cash cobrado del mes.
 // Estas personas no aparecen en las hojas de datos, por eso se configuran acá.
 const BONIFICACION_MENSUAL = [
@@ -165,8 +168,7 @@ function tipoStyle(t) {
 // ═══════════════════════════════════════════════
 //  CORE STATS (compartido entre período actual y anterior)
 // ═══════════════════════════════════════════════
-const NO_ASISTE = ['no asiste','no show','cancelada','cancelado'];
-const esAsistencia = r => !NO_ASISTE.includes(r.Evento.toLowerCase());
+const esAsistencia = r => EVENTOS_ASISTENCIA.includes(r.Evento.trim().toLowerCase());
 const esRenov = r => r.Tipo.toLowerCase().includes('renov');
 
 // Filtra las 5 fuentes de datos por un predicado de fecha y calcula los agregados base.
@@ -177,7 +179,7 @@ function computeCoreStats(inRangeFn) {
   const co = RAW_C.filter(r  => inRangeFn(r.Fecha));
   const cl = RAW_CL.filter(r => inRangeFn(r.Fecha));
 
-  // Agendas = confirmados por Call Confirmer; Asistencias = CLOSER_LOG sin no-shows
+  // Agendas = confirmados por Call Confirmer; Asistencias = reuniones del CLOSER_LOG según CONFIG
   const totAg = cc.filter(r=>r.Estado==='Confirmado').length;
   const totAs = cl.filter(esAsistencia).length;
   const totCash  = co.reduce((s,r)=>s+r.Monto,0);
@@ -362,6 +364,7 @@ function renderKPIs(s) {
   document.getElementById('k-agendas').textContent = s.totAg;
   document.getElementById('k-show').textContent    = sr+'%';
   document.getElementById('k-show-sub').textContent = s.totAs+'/'+s.totAg+' asist. / conf.';
+  document.getElementById('k-show-sub').title = 'Asistencia: '+EVENTOS_ASISTENCIA.join(', ');
   document.getElementById('k-close').textContent   = cr+'%';
   document.getElementById('k-close-sub').textContent = s.totNuevas+'/'+s.totAs+' nuevas';
 
