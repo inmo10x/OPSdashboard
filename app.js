@@ -4,6 +4,10 @@
 // Meta mensual de cash del equipo (USD) — para "Meta vs. realizado"
 const META_MENSUAL_USD = 40000;
 
+// Mínimos de asistencias para evaluar conversión y de agendas para actividad.
+const UMBRAL_ASISTENCIAS_JUZGABLES = 10;
+const UMBRAL_BAJA_ACTIVIDAD = 6;
+
 // Bonificación mensual por contrato: % del cash cobrado del mes.
 // Estas personas no aparecen en las hojas de datos, por eso se configuran acá.
 const BONIFICACION_MENSUAL = [
@@ -80,10 +84,14 @@ function weekOf(dateStr) {
   return mon.toISOString().slice(0,10);
 }
 
-function fmtDate(d) { return d.slice(5).replace('-','/'); }
+function fmtDate(d) { return d.split('-').slice(1).reverse().join('/'); }
 function fmtMoney(n) {
   if (n >= 1000) return '$' + (n/1000).toFixed(1).replace('.0','') + 'K';
   return '$' + Math.round(n);
+}
+function fmtMoneyFull(n) { return '$' + Math.round(n).toLocaleString('es-CL'); }
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function pct(a,b) { return b ? Math.round(a/b*100) : 0; }
 
@@ -249,9 +257,7 @@ function computeStats() {
   const totCobrado = v.reduce((s,r)=>s+r.Cobrado,0);
   const totPdte = v.reduce((s,r)=>s+r.Pendiente,0);
 
-  const allCN=[...new Set([...md.map(r=>r.Closer),...clFilt.map(r=>r.Closer)])].filter(Boolean);
-  const ORDER=['Ignacio','Sebastian','Karim','Guillermo'];
-  const closers=ORDER.filter(c=>allCN.includes(c)).concat(allCN.filter(c=>!ORDER.includes(c)));
+  const closers=[...new Set([...md,...clFilt,...cc,...co,...v].map(r=>r.Closer))].filter(Boolean);
   const byCloser={};
   closers.forEach(c=>{
     const rows=md.filter(r=>r.Closer===c);
@@ -330,8 +336,8 @@ function renderAll() {
 }
 
 function renderRangeLabel() {
-  const f = dateFrom.slice(5).replace('-','/');
-  const t = dateTo.slice(5).replace('-','/');
+  const f = fmtDate(dateFrom);
+  const t = fmtDate(dateTo);
   document.getElementById('range-label').textContent = f + ' – ' + t;
 }
 
@@ -581,20 +587,24 @@ function renderFunnelChart(s) {
 }
 
 function renderClosers(s) {
-  const badges = {
-    Ignacio:{cls:'b-gold',txt:'Líder'},
-    Sebastian:{cls:'b-red',txt:'Sin Cierres'},
-    Karim:{cls:'b-grey',txt:'En Desarrollo'},
-    Guillermo:{cls:'b-grey',txt:'Baja Actividad'}
-  };
-  const cavs = {Ignacio:'cav-I',Sebastian:'cav-S',Karim:'cav-K',Guillermo:'cav-G'};
+  const closers = [...s.closers].sort((a,b)=>s.byCloser[b].cash-s.byCloser[a].cash);
+  const palette = ['cav-I','cav-S','cav-K','cav-G'];
+  const cavs = new Map();
+  s.closers.forEach(c => {
+    if (!cavs.has(c)) cavs.set(c, palette[cavs.size % palette.length]);
+  });
+  const leader = closers.find(c=>s.byCloser[c].cash>0);
 
   let html = '';
-  s.closers.forEach(c => {
+  closers.forEach(c => {
     const d = s.byCloser[c];
-    if(d.ag+d.as+d.ci===0) return;
+    if(d.ag+d.as+d.ci===0 && d.cash===0) return;
     const sr = pct(d.as,d.ag), cr = pct(d.ci,d.as);
-    const b = badges[c]||{cls:'b-grey',txt:c};
+    const sinCierres = d.as>=UMBRAL_ASISTENCIAS_JUZGABLES && d.ci===0;
+    const bajaActividad = d.ag<UMBRAL_BAJA_ACTIVIDAD;
+    const b = c===leader ? {cls:'b-gold',txt:'Líder'}
+      : sinCierres ? {cls:'b-red',txt:'Sin cierres'}
+      : bajaActividad ? {cls:'b-grey',txt:'Baja actividad'} : null;
 
     // Weekly rows
     const weekRows = {};
@@ -618,12 +628,12 @@ function renderClosers(s) {
     const totCash  = s.co.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Monto,0);
     const totVenta = s.v.filter(r=>r.Closer===c).reduce((s,r)=>s+r.Venta,0);
 
-    const sebAlert = c==='Sebastian' ? `
+    const conversionAlert = sinCierres ? `
       <div class="alert warn" style="margin:0 14px 12px">
         <div class="alert-title">⚠ Alerta Conversión</div>
         Show rate ${sr}% pero 0 cierres. El cuello de botella está en la conversión, no en la convocatoria.
       </div>` : '';
-    const guillAlert = c==='Guillermo' && d.ag<6 ? `
+    const actividadAlert = bajaActividad ? `
       <div class="alert gy" style="margin:0 14px 12px">
         <div class="alert-title">📌 Nota</div>
         Actividad muy baja (${d.ag} agendas). Necesita más volumen para evaluar su tasa de conversión real.
@@ -632,9 +642,9 @@ function renderClosers(s) {
     html += `
     <div class="ccard" id="cc-${c}">
       <div class="ccard-head" onclick="toggleCloser('${c}')">
-        <div class="cav ${cavs[c]}">${c[0]}</div>
+        <div class="cav ${cavs.get(c)}">${c[0]}</div>
         <div class="cname">${c}</div>
-        <span class="cbadge ${b.cls}">${b.txt}</span>
+        ${b ? `<span class="cbadge ${b.cls}">${b.txt}</span>` : ''}
         <span class="chevron">▼</span>
       </div>
       <div class="cstats" style="grid-template-columns:repeat(5,1fr)">
@@ -645,7 +655,7 @@ function renderClosers(s) {
         <div class="cs"><div class="cs-val" style="color:${totCash>0?'var(--gold-deep)':'var(--g3)'}">${totCash>0?fmtMoney(totCash):'$0'}</div><div class="cs-lbl">Cash</div></div>
       </div>
       <div class="cdetail">
-        ${sebAlert}${guillAlert}
+        ${conversionAlert}${actividadAlert}
         <div class="rate-block">
           <div class="rate-row-item">
             <span class="rate-name">Show Rate</span>
@@ -855,9 +865,6 @@ function renderVentas(s) {
 
   // Se calcula desde cobros aunque no haya ventas en el período.
   const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
-  const commissionLabel = value => String(value).replace(/[&<>"']/g, c => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-  }[c]));
   const paymentEl = document.getElementById('bonificacion-mensual-wrap');
   paymentEl.innerHTML = '';
   if (BONIFICACION_MENSUAL.length) {
@@ -892,7 +899,7 @@ function renderVentas(s) {
       +'<table style="width:100%;border-collapse:collapse;">'
       +'<thead><tr style="background:var(--bg);">'
       +'<th style="padding:8px 10px;text-align:left;font-size:.57rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Mes</th>'
-      +paymentColumns.map(column => '<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:'+column.color+';text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">'+commissionLabel(column.nombre)+'</th>' ).join('')
+      +paymentColumns.map(column => '<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:'+column.color+';text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">'+escapeHTML(column.nombre)+'</th>' ).join('')
       +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Total</th>'
       +'</tr></thead>'
       +'<tbody>'+monthlyPaymentRows+'</tbody>'
@@ -990,7 +997,7 @@ function renderVentas(s) {
       +'<table style="width:100%;border-collapse:collapse;">'
       +'<thead><tr style="background:var(--bg);">'
       +'<th style="padding:8px 10px;text-align:left;font-size:.57rem;color:var(--g4);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Mes</th>'
-      +columns.map(column => '<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:'+column.color+';text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">'+commissionLabel(column.name)+'</th>' ).join('')
+      +columns.map(column => '<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:'+column.color+';text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">'+escapeHTML(column.name)+'</th>' ).join('')
       +'<th style="padding:8px 10px;text-align:right;font-size:.57rem;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;border-bottom:1px solid var(--border2);">Total</th>'
       +'</tr></thead>'
       +'<tbody>'+monthTableRows+'</tbody>'
@@ -1007,8 +1014,8 @@ function renderVentas(s) {
       +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Closers</div>'
       + comRows.map(([c,v]) =>
           '<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
-          +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+commissionColors.get(c)+';">'+commissionLabel(c[0])+'</div>'
-          +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+commissionLabel(c)+'</div>'
+          +'<div style="width:32px;height:32px;border-radius:50%;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:'+commissionColors.get(c)+';">'+escapeHTML(c[0])+'</div>'
+          +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">'+escapeHTML(c)+'</div>'
           +'<div style="font-weight:700;font-size:1rem;color:var(--gold-deep);">'+fmtMoney(v)+'</div>'
           +'</div>'
         ).join('')
@@ -1022,7 +1029,7 @@ function renderVentas(s) {
       +'<div style="padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:600;color:var(--g3);text-transform:uppercase;letter-spacing:.07em;">Call Confirmer</div>'
       +'<div style="display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);gap:12px;">'
       +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-p);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);">C</div>'
-      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">' +commissionLabel(confirmerLabel)+'</div>'
+      +'<div style="flex:1;font-size:.72rem;font-weight:500;color:var(--g1);">' +escapeHTML(confirmerLabel)+'</div>'
       +'<div style="font-weight:700;font-size:1rem;color:var(--green);">'+fmtMoney(totConf)+'</div>'
       +'</div>'
       +'<div style="display:flex;justify-content:space-between;padding:9px 14px;background:var(--bg);">'
@@ -1146,12 +1153,9 @@ function embudoMensual(rows) {
     return r;
   });
 }
-function embudoEscape(value) {
-  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 function embudoFormato(value, type) {
   if (value == null || !Number.isFinite(value)) return '<span class="embudo-nd">n/d</span>';
-  if (type === 'money') return fmtMoney(value);
+  if (type === 'money') return fmtMoneyFull(value);
   if (type === 'pct') return Math.round(value*100)+'%';
   if (type === 'ratio') return value.toFixed(2).replace('.',',');
   return String(value);
@@ -1168,7 +1172,7 @@ function renderEmbudo() {
   });
   const wrap = document.getElementById('embudo-table-wrap');
   if (embudoError) {
-    wrap.innerHTML = '<p role="alert">'+embudoEscape(embudoError)+'</p>';
+    wrap.innerHTML = '<p role="alert">'+escapeHTML(embudoError)+'</p>';
     return;
   }
   const weeks = RAW_ES.filter(r => inRange(r.inicio));
@@ -1185,7 +1189,7 @@ function renderEmbudo() {
     +rows.map(r => {
       const quiebre = r.inicio === EMBUDO_QUIEBRE;
       const periodo = r.periodo || fmtDate(r.inicio)+' – '+fmtDate(r.fin);
-      return '<tr'+(quiebre ? ' class="embudo-quiebre"' : '')+'><th scope="row">'+embudoEscape(periodo)
+      return '<tr'+(quiebre ? ' class="embudo-quiebre"' : '')+'><th scope="row">'+escapeHTML(periodo)
         +(quiebre ? '<span class="embudo-badge">Inicio leads GHL</span>' : '')+'</th>'
         +columns.map(([,key,type]) => '<td>'+embudoFormato(r[key],type)+'</td>').join('')+'</tr>';
     }).join('')+'</tbody></table>';

@@ -127,8 +127,8 @@ const scenarios = [
     c.dateFrom='2026-07-20'; c.dateTo='2026-07-20'; c.renderEmbudo();
     let html = elements['embudo-table-wrap'].innerHTML;
     assert.match(html,/embudo-quiebre/); assert.match(html,/Inicio leads GHL/);
-    assert.match(html,/07\/20 – 08\/09/);
-    assert.doesNotMatch(html,/07\/13|08\/03|2026-07-20/);
+    assert.match(html,/20\/07 – 09\/08/);
+    assert.doesNotMatch(html,/13\/07|03\/08|2026-07-20/);
     assert.equal((html.match(/scope="col"/g)||[]).length,13);
     c.setEmbudoModo('mensual'); html=elements['embudo-table-wrap'].innerHTML;
     assert.match(html,/2026-08/); assert.match(html,/0,50/);
