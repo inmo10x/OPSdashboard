@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <!-- ?v= — bump en cada deploy para invalidar caché del navegador -->
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
 
@@ -225,11 +225,17 @@
   <p class="embudo-nota">Desde el 20/7/2026, Q bookings son leads válidos de GHL; antes eran agendas del dashboard. QB/B no aplica antes del cambio ni en meses que mezclan ambas definiciones. El filtro incluye semanas por su fecha de inicio.</p>
   <p class="embudo-nota">n/d: dato ausente o razón no aplicable. En mensual, un total con datos faltantes muestra n/d.</p>
   <div id="embudo-table-wrap" class="embudo-scroll" role="region" aria-label="Tabla del embudo comercial" tabindex="0"><!-- JS --></div>
+
+  <div class="divider"></div>
+  <div class="cc"><h3>Inversión y venta nueva</h3><div class="cc-sub">Fuente: EMBUDO_SEMANAL · USD · Venta nueva en el eje derecho</div><div class="chart-box" style="height:320px"><canvas id="c-embudo-inversion" role="img" aria-label="Inversión y venta nueva"></canvas></div></div>
+  <div class="cc"><h3>Costo de adquisición</h3><div class="cc-sub">Fuente: EMBUDO_SEMANAL · USD · CAC en el eje derecho</div><div class="chart-box" style="height:320px"><canvas id="c-embudo-costos" role="img" aria-label="Costo de adquisición"></canvas></div></div>
+  <div class="cc"><h3>Embudo</h3><div class="cc-sub">Fuente: EMBUDO_SEMANAL · Cantidades por período</div><div class="chart-box" style="height:320px"><canvas id="c-embudo-volumen" role="img" aria-label="Embudo"></canvas></div></div>
+  <div class="cc"><h3>Tasas</h3><div class="cc-sub">Fuente: EMBUDO_SEMANAL · Definiciones de la hoja: asistencia es la 1ª reunión con cada lead. No coinciden con el show rate de Visión General, que usa CLOSER_LOG y cuenta cada reunión. Ambas son correctas y miden cosas distintas.</div><div class="chart-box" style="height:320px"><canvas id="c-embudo-tasas" role="img" aria-label="Tasas"></canvas></div></div>
 </div>
 
 </div><!-- /main -->
 </div><!-- /shell -->
 
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

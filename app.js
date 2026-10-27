@@ -868,7 +868,6 @@ function renderVentas(s) {
     <div class="kpi rd"><div class="kpi-lbl">Pendiente</div><div class="kpi-val">${fmtMoney(totP)}</div><div class="kpi-sub">${pct(totP,totV)}% por cobrar</div></div>`;
 
   // Se calcula desde cobros aunque no haya ventas en el período.
-  const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
   const paymentEl = document.getElementById('bonificacion-mensual-wrap');
   paymentEl.innerHTML = '';
   if (BONIFICACION_MENSUAL.length) {
@@ -1095,6 +1094,7 @@ function exportPDF() {
 //  EMBUDO
 // ═══════════════════════════════════════════════
 const EMBUDO_QUIEBRE = '2026-07-20';
+const MNAMES_C = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
 let embudoModo = 'semanal', embudoError = '';
 
 function embudoFecha(value) { return typeof value === 'string' ? value.slice(0,10) : ''; }
@@ -1114,6 +1114,7 @@ function parseEmbudo(rows) {
     inicio: embudoFecha(r['Semana inicio (lun)']), fin: embudoFecha(r['Semana fin (dom)']),
     mes: embudoNumero(r.Mes), inversion: embudoNumero(r['Inversión Meta (USD)']),
     bookings: embudoNumero(r[keys[0]]), agendas: embudoNumero(r.Agendas),
+    ventaUSD: embudoNumero(r['Venta nueva (USD)']), cashUSD: embudoNumero(r['Cash sin renovaciones (USD)']),
     venta: embudoNumero(r['Agendas de venta (CRM)']), confirmadas: embudoNumero(r['Citas confirmadas']),
     asistencias: embudoNumero(r['Reuniones realizadas (1ª con cada lead)']), cierres: embudoNumero(r['Cierres nuevos']),
     cpl: embudoNumero(r['CPL (USD)']), costoVenta: embudoNumero(r['Costo por agenda de venta (USD)']),
@@ -1144,7 +1145,7 @@ function embudoMensual(rows) {
   return [...groups].sort(([a],[b]) => a.localeCompare(b)).map(([periodo, weeks]) => {
     const r = {periodo};
     // Una suma incompleta sigue siendo ausencia, no un total artificialmente bajo.
-    ['inversion','bookings','agendas','venta','confirmadas','asistencias','cierres'].forEach(k => {
+    ['inversion','bookings','agendas','venta','ventaUSD','cashUSD','confirmadas','asistencias','cierres'].forEach(k => {
       r[k] = weeks.some(w => w[k] == null) ? null : weeks.reduce((sum,w) => sum+w[k], 0);
     });
     r.cpl = embudoDivision(r.inversion, r.bookings);
@@ -1155,6 +1156,66 @@ function embudoMensual(rows) {
     r.costoAsistencia = embudoDivision(r.inversion, r.asistencias);
     r.cac = embudoDivision(r.inversion, r.cierres);
     return r;
+  });
+}
+// La tabla decide las filas y su orden; las series sólo adaptan etiquetas y unidades.
+function embudoSeries(rows, modo) {
+  const series = {
+    labels: rows.map(r => modo === 'mensual'
+      ? MNAMES_C[r.periodo.slice(5,7)]+' '+r.periodo.slice(0,4) : fmtDate(r.inicio)),
+  };
+  ['inversion','ventaUSD','cpl','costoVenta','cac','bookings','venta','asistencias','cierres'].forEach(k => {
+    series[k] = rows.map(r => r[k] == null ? null : r[k]);
+  });
+  ['show','cierre'].forEach(k => {
+    series[k] = rows.map(r => r[k] == null ? null : r[k]*100);
+  });
+  return series;
+}
+function renderEmbudoGraficos(rows, modo) {
+  // Sin canvas disponible no hay superficie donde dibujar.
+  if (!document.getElementById('c-embudo-inversion')?.getContext) return;
+  const s = embudoSeries(rows, modo);
+  const linea = (label, key, color, yAxisID = 'y') => ({
+    type:'line', label, data:s[key], borderColor:color, backgroundColor:color,
+    yAxisID, spanGaps:false, tension:0.2, pointRadius:3,
+  });
+  const barra = (label, key, color, fondo) => ({
+    type:'bar', label, data:s[key], borderColor:color, backgroundColor:fondo, borderWidth:1,
+  });
+  const eje = (text, money = false) => ({
+    beginAtZero:true, title:{display:true,text,color:legendCol()},
+    grid:{color:gridCol()}, ticks:{color:legendCol(),callback:v => money ? fmtMoneyFull(v) : v},
+  });
+  const opciones = scales => ({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:12,color:legendCol()}}},
+    scales:{x:{grid:{display:false},ticks:{color:legendCol()}},...scales},
+  });
+  upsertChart('embudoInversion', 'c-embudo-inversion', {
+    type:'bar', data:{labels:s.labels,datasets:[
+      barra('Inversión (USD)', 'inversion', GOLD, GOLD_P),
+      linea('Venta nueva (USD)', 'ventaUSD', GREEN, 'yVenta'),
+    ]}, options:opciones({y:eje('Inversión (USD)',true),
+      yVenta:{...eje('Venta nueva (USD)',true),position:'right',grid:{drawOnChartArea:false}}}),
+  });
+  upsertChart('embudoCostos', 'c-embudo-costos', {
+    type:'line', data:{labels:s.labels,datasets:[
+      linea('$ Q booking', 'cpl', GOLD), linea('Costo por agenda de venta', 'costoVenta', GREEN),
+      linea('CAC', 'cac', BLUE, 'yCAC'),
+    ]}, options:opciones({y:eje('Costo (USD)',true),
+      yCAC:{...eje('CAC (USD)',true),position:'right',grid:{drawOnChartArea:false}}}),
+  });
+  upsertChart('embudoVolumen', 'c-embudo-volumen', {
+    type:'bar', data:{labels:s.labels,datasets:[
+      barra('Q bookings', 'bookings', GOLD, GOLD_P), barra('Agendas de venta', 'venta', GREEN, GREEN_P),
+      barra('Asistencias', 'asistencias', BLUE, BLUE_P), barra('Cierres', 'cierres', RED, RED_P),
+    ]}, options:opciones({y:eje('Cantidad')}),
+  });
+  upsertChart('embudoTasas', 'c-embudo-tasas', {
+    type:'line', data:{labels:s.labels,datasets:[
+      linea('Asistencia', 'show', GOLD), linea('Cierre', 'cierre', GREEN),
+    ]}, options:opciones({y:{...eje('Porcentaje'),ticks:{color:legendCol(),callback:v => v+'%'}}}),
   });
 }
 function embudoFormato(value, type) {
@@ -1177,10 +1238,12 @@ function renderEmbudo() {
   const wrap = document.getElementById('embudo-table-wrap');
   if (embudoError) {
     wrap.innerHTML = '<p role="alert">'+escapeHTML(embudoError)+'</p>';
+    renderEmbudoGraficos([], embudoModo);
     return;
   }
   const weeks = RAW_ES.filter(r => inRange(r.inicio));
   const rows = embudoModo === 'mensual' ? embudoMensual(weeks) : weeks;
+  renderEmbudoGraficos(rows, embudoModo);
   if (!rows.length) { wrap.innerHTML = '<div class="no-data">Sin datos de embudo en este período</div>'; return; }
   const columns = [
     ['Inversión','inversion','money'], ['Q bookings','bookings'], ['$ Q booking','cpl','money'],
@@ -1210,18 +1273,19 @@ function showPage(id, el) {
   document.querySelectorAll('.sb-item').forEach(b=> b.classList.toggle('active', b.dataset.page === id));
   document.getElementById('page-'+id).classList.add('active');
   window.scrollTo(0,0);
-  if (id === 'embudo') renderEmbudo();
-  if (!RAW_C.length) return;
-  const s = computeStats();
-  if (id === 'ventas') renderVentas(s);
   // Chart.js no puede medir canvas ocultos (quedan en 0×0 y resize() no los
   // recupera): destruir y re-crear los charts de la página recién mostrada.
   const PAGE_CHARTS = {
     overview:  ['meta','ticketTime','cash','funnel'],
     closers:   ['rates','ventasCloser','revenueShare'],
     confirmer: ['confWeek','confCloser'],
+    embudo:    ['embudoInversion','embudoCostos','embudoVolumen','embudoTasas'],
   };
   (PAGE_CHARTS[id]||[]).forEach(destroyChart);
+  if (id === 'embudo') { renderEmbudo(); return; }
+  if (!RAW_C.length) return;
+  const s = computeStats();
+  if (id === 'ventas') renderVentas(s);
   if (id === 'overview')  { renderOverview(s); renderCashChart(s); renderFunnelChart(s); }
   if (id === 'closers')   { renderRatesChart(s); renderVentasPorCloser(s); renderRevenueShare(s); }
   if (id === 'confirmer') { renderConfirmer(s); }
@@ -1480,6 +1544,7 @@ function toggleTheme() {
   applyChartTheme();
   // Redraw charts with new colors
   if (RAW_MD.length) renderAll();
+  else if (document.getElementById('page-embudo').classList.contains('active')) renderEmbudo();
 }
 
 // Inicializar tema guardado (antes de que carguen los datos, para evitar flash)
