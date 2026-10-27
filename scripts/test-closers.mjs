@@ -48,8 +48,8 @@ function verify(rows) {
   const leader = sorted.find(name=>rows[name].cash>0);
   for (const card of cards) {
     const d = rows[card.name];
-    const conversion = d.as>=10 && d.ci===0;
-    const low = d.ag<6;
+    const conversion = d.ag+d.as+d.ci>0 && d.as>=10 && d.ci===0;
+    const low = d.ag+d.as+d.ci>0 && d.ag<6;
     const expected = card.name===leader ? ['b-gold','Líder']
       : conversion ? ['b-red','Sin cierres'] : low ? ['b-grey','Baja actividad'] : null;
     assert.deepEqual(card.badge ? card.badge.slice(1) : null, expected, `Badge de ${card.name}`);
@@ -75,6 +75,24 @@ const scenarios = [
       Ignacio:{ag:100,as:80,ci:40,cash:100000},
       SinDatos:{ag:0,as:0,ci:0,cash:0}
     });
+  }],
+  ['cash sin llamadas no recibe juicios y puede liderar', () => {
+    const rows = {
+      ConLlamadas:{ag:20,as:15,ci:3,cash:30000},
+      Nury:{ag:0,as:0,ci:0,cash:21343},
+      Alexandra:{ag:0,as:0,ci:0,cash:4285}
+    };
+    for (const lidera of [false,true]) {
+      if (lidera) rows.Nury.cash=rows.ConLlamadas.cash+1;
+      const cards = verify(rows);
+      for (const name of ['Nury','Alexandra']) {
+        const card = cards.find(r=>r.name===name);
+        assert.ok(card, 'Cash sin llamadas mantiene la tarjeta visible');
+        assert.doesNotMatch(card.html, /Baja actividad|Sin cierres|Alerta Conversión|Actividad muy baja/);
+        assert.deepEqual(card.badge ? card.badge.slice(1) : null,
+          lidera && name==='Nury' ? ['b-gold','Líder'] : null);
+      }
+    }
   }],
   ['umbrales, prioridad y reglas independientes del nombre', () => {
     for (const ag of [0,5,6,20]) for (const as of [0,2,9,10,11]) for (const ci of [0,1,7]) {

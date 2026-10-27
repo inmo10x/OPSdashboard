@@ -600,8 +600,9 @@ function renderClosers(s) {
     const d = s.byCloser[c];
     if(d.ag+d.as+d.ci===0 && d.cash===0) return;
     const sr = pct(d.as,d.ag), cr = pct(d.ci,d.as);
-    const sinCierres = d.as>=UMBRAL_ASISTENCIAS_JUZGABLES && d.ci===0;
-    const bajaActividad = d.ag<UMBRAL_BAJA_ACTIVIDAD;
+    const tieneActividad = d.ag+d.as+d.ci>0;
+    const sinCierres = tieneActividad && d.as>=UMBRAL_ASISTENCIAS_JUZGABLES && d.ci===0;
+    const bajaActividad = tieneActividad && d.ag<UMBRAL_BAJA_ACTIVIDAD;
     const b = c===leader ? {cls:'b-gold',txt:'Líder'}
       : sinCierres ? {cls:'b-red',txt:'Sin cierres'}
       : bajaActividad ? {cls:'b-grey',txt:'Baja actividad'} : null;
