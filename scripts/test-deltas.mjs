@@ -58,6 +58,7 @@ const scenarios = [
     c.renderOverview(s); c.renderKPIs(s);
     assert.equal((elements['ov-kpis'].innerHTML.match(/sin período previo/g) || []).length, 4);
     neutral(elements['ov-kpis'].innerHTML);
+    assert.doesNotMatch(elements['ov-kpis'].innerHTML, /vs\. período anterior/);
     for (const key of ['ventas', 'renov', 'agendas', 'show', 'close']) {
       neutral(elements[`k-${key}-delta`].innerHTML);
       assert.match(elements[`k-${key}-delta`].innerHTML, /sin período previo/);
@@ -92,7 +93,12 @@ const scenarios = [
       }
       neutral(d(0, null)); neutral(d(2, null));
       assert.match(d(3, 2), /▲ 50%/); assert.match(d(1, 2), /▼ 50%/);
-      assert.equal(d(3, 2).includes('<span class="vs">vs. período anterior</span>'), suffix);
+      for (const html of [d(2, 0), d(0, 0), d(100.1, 100), d(99.9, 100), d(3, 2), d(72, 100)]) {
+        assert.equal(html.includes('<span class="vs">vs. período anterior</span>'), suffix);
+      }
+      for (const html of [d(0, null), d(2, null), c.deltaP(50, null, css, suffix)]) {
+        assert.doesNotMatch(html, /vs\. período anterior/);
+      }
       neutral(c.deltaP(50, 50, css, suffix));
       neutral(c.deltaP(50, null, css, suffix));
       assert.match(c.deltaP(52, 50, css, suffix), /▲ 2pp/);

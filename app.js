@@ -205,7 +205,7 @@ function computePrevStats() {
 }
 
 function deltaHTML(text, cls, css, suffix, title='') {
-  return `<span class="${css} ${cls}"${title ? ` title="${title}"` : ''}>${text}${suffix ? ' <span class="vs">vs. período anterior</span>' : ''}</span>`;
+  return `<span class="${css} ${cls}"${title ? ` title="${title}"` : ''}>${text}${suffix && text !== 'sin período previo' ? ' <span class="vs">vs. período anterior</span>' : ''}</span>`;
 }
 
 // delta para valores absolutos → muestra % de cambio
