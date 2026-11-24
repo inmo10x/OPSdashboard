@@ -32,25 +32,27 @@ function verificarEvento(evento, esperado) {
   assert.equal(s.totAs, esperado, `Total: ${JSON.stringify(evento)}`);
   assert.equal(s.byCloser.Ana.as, esperado, `Closer: ${JSON.stringify(evento)}`);
 }
+const ASISTEN = ['asistencia','cierre','perdido','seguimiento','reserva'];
 const scenarios = [
-  ['lista blanca exacta en CONFIG y cuatro eventos por separado', () => {
+  ['lista blanca exacta en CONFIG y cinco eventos por separado', () => {
     assert.deepEqual(Array.from(vm.runInContext('EVENTOS_ASISTENCIA', c)),
-      ['asistencia','cierre','perdido','seguimiento']);
-    for (const evento of ['asistencia','cierre','perdido','seguimiento']) verificarEvento(evento, 1);
+      ['asistencia','cierre','perdido','seguimiento','reserva']);
+    for (const evento of ASISTEN) verificarEvento(evento, 1);
   }],
   ['eventos ajenos, vacíos y desconocidos no cuentan', () => {
-    for (const evento of ['agenda','reserva','cash collect','','evento futuro inventado','no asiste','cancelada','no show','cancelado']) {
+    // "Agenda" es la cita tomada, todavía sin realizar: no es una asistencia.
+    for (const evento of ['agenda','cash collect','','evento futuro inventado','no asiste','cancelada','no show','cancelado']) {
       verificarEvento(evento, 0);
     }
   }],
   ['mayúsculas y espacios no cambian la clasificación', () => {
-    for (const evento of ['asistencia','cierre','perdido','seguimiento']) verificarEvento(' \t'+evento.toUpperCase()+' \n', 1);
-    for (const evento of ['agenda','reserva','cash collect','','evento futuro inventado','no asiste','cancelada']) {
+    for (const evento of ASISTEN) verificarEvento(' \t'+evento.toUpperCase()+' \n', 1);
+    for (const evento of ['agenda','cash collect','','evento futuro inventado','no asiste','cancelada']) {
       verificarEvento(' \t'+evento.toUpperCase()+' \n', 0);
     }
   }],
   ['reuniones sin deduplicar, denominador confirmado y tasas visibles', () => {
-    const eventos = ['asistencia','seguimiento','agenda','reserva','cash collect'];
+    const eventos = ['asistencia','seguimiento','agenda','no asiste','cash collect'];
     const s = calcular(eventos, ['Confirmado','Confirmado','Confirmado','Cancelado','Descalificado','confirmado','']);
     // El criterio anterior incluía las cinco filas frente a tres confirmaciones.
     const anteriores = eventos.filter(e => !['no asiste','no show','cancelada','cancelado'].includes(e)).length;

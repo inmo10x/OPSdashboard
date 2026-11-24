@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <!-- ?v= — bump en cada deploy para invalidar caché del navegador -->
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
@@ -224,6 +224,7 @@
   </div>
   <p class="embudo-nota">Desde el 20/7/2026, Q bookings son leads válidos de GHL; antes eran agendas del dashboard. QB/B no aplica antes del cambio ni en meses que mezclan ambas definiciones. El filtro incluye semanas por su fecha de inicio.</p>
   <p class="embudo-nota">n/d: dato ausente o razón no aplicable. En mensual, un total con datos faltantes muestra n/d.</p>
+  <p id="embudo-frescura" class="embudo-nota"><!-- JS --></p>
   <div id="embudo-table-wrap" class="embudo-scroll" role="region" aria-label="Tabla del embudo comercial" tabindex="0"><!-- JS --></div>
 
   <div class="divider"></div>
@@ -236,6 +237,6 @@
 </div><!-- /main -->
 </div><!-- /shell -->
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

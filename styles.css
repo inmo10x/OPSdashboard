@@ -591,6 +591,8 @@ canvas { max-width:100%; }
 /* Embudo comercial */
 .embudo-controls { display:flex; gap:8px; padding:0 16px 12px; }
 .embudo-nota { margin:0 16px 12px; color:var(--g3); font-size:.75rem; line-height:1.5; }
+/* Una fuente atrasada se avisa, no se disimula. */
+.embudo-nota.embudo-alerta { color:var(--red); font-weight:500; }
 .embudo-scroll { max-width:100%; overflow-x:auto; padding:0 16px 16px; }
 .embudo-table { width:100%; min-width:1250px; border-collapse:collapse; font-size:.72rem; }
 .embudo-table th, .embudo-table td { padding:12px 10px; text-align:right; border-bottom:1px solid var(--border); }
