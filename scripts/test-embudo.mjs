@@ -20,7 +20,10 @@ const c = vm.createContext({
   }
 });
 vm.runInContext(extract('const DIAS_FUENTE_OBSOLETA', '\n')
+  + extract('const CONFIRMER_RUTINA', '\n')
+  + extract('const RE_NO_ASISTIO', '\n')
   + extract('function diasDesdeCivil(', '\n// ── ASISTENCIA')
+  + extract('const ccResuelta =', '\n\n// Llave de cruce')
   + extract('const EMBUDO_QUIEBRE =', 'function showPage(')
   + extract('function inRange(', 'function weekOf(')
   + extract('function fmtDate(', 'function pct('), c);
@@ -146,7 +149,8 @@ const scenarios = [
     assert.equal(vm.runInContext("diasEntre('2024-02-28','2024-03-01')", c), 2, '2024 sí lo es');
     assert.equal(vm.runInContext("diasEntre('2025-12-30','2026-01-02')", c), 3, 'cruza el año');
     const corte = (log, citas) => {
-      c.cl = log.map(Fecha => ({Fecha})); c.cc = citas.map(Fecha => ({Fecha}));
+      c.cl = log.map(Fecha => ({Fecha}));
+      c.cc = citas.map(Fecha => ({Fecha, Estado: 'Confirmado', Confirmer: 'CRM', Notas: ''}));
       return vm.runInContext('corteLogObsoleto(cl, cc)', c);
     };
     assert.equal(corte([], []), '', 'sin datos no se inventa un corte');
@@ -156,6 +160,23 @@ const scenarios = [
     assert.equal(corte(['2026-11-17'], ['2026-11-21']), '2026-11-17', 'un día más ya no');
     assert.equal(corte(['2026-11-14'], ['2026-11-21']), '2026-11-14', 'nueve días no');
     assert.equal(corte(['2026-11-22'], ['2026-11-21']), '', 'un log adelantado no es un atraso');
+  }],
+
+  ['la alerta mide contra la última reunión ocurrida, no contra la última cita', () => {
+    // Caso real de noviembre: después de la última asistida vinieron solo no-shows
+    // y cancelaciones. Eso no genera filas en el log y no es un atraso.
+    c.cl = [{Fecha: '2026-11-18'}];
+    c.cc = [{Fecha: '2026-11-18', Estado: 'Confirmado', Confirmer: 'CRM', Notas: ''},
+            {Fecha: '2026-11-22', Estado: 'Confirmado', Confirmer: 'CRM', Notas: 'No asistió'},
+            {Fecha: '2026-11-23', Estado: 'Cancelado',  Confirmer: 'CRM', Notas: ''},
+            {Fecha: '2026-11-24', Estado: 'En proceso', Confirmer: 'CRM', Notas: ''}];
+    assert.equal(vm.runInContext('corteLogObsoleto(cl, cc)', c), '');
+    // Pero una reunión ocurrida que el log no tiene sí lo es.
+    c.cl = [{Fecha: '2026-11-14'}];
+    assert.equal(vm.runInContext('corteLogObsoleto(cl, cc)', c), '2026-11-14');
+    // Las filas de confirmers humanos no cuentan como reunión ocurrida.
+    c.cc = [{Fecha: '2026-11-25', Estado: 'Confirmado', Confirmer: 'Claudia', Notas: ''}];
+    assert.equal(vm.runInContext('corteLogObsoleto(cl, cc)', c), '');
   }],
 
   ['más allá del log las reuniones quedan sin dato, no en cero', () => {
