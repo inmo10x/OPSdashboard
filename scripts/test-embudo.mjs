@@ -23,7 +23,7 @@ vm.runInContext(extract('const DIAS_FUENTE_OBSOLETA', '\n')
   + extract('const CONFIRMER_RUTINA', '\n')
   + extract('const RE_NO_ASISTIO', '\n')
   + extract('function diasDesdeCivil(', '\n// ── ASISTENCIA')
-  + extract('const ccResuelta =', '\n\n// Llave de cruce')
+  + extract('const ccResuelta =', '\n\n// Llaves de cruce')
   + extract('const EMBUDO_QUIEBRE =', 'function showPage(')
   + extract('function inRange(', 'function weekOf(')
   + extract('function fmtDate(', 'function pct('), c);
