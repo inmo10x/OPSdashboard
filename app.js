@@ -1191,8 +1191,13 @@ const ultimaFecha = rows => rows.reduce((max,r) => r.Fecha > max ? r.Fecha : max
 
 // Hasta qué fecha el CLOSER_LOG es creíble; '' si viene al día. Se mide contra las
 // citas del confirmer, que las carga otra rutina y por eso sirven de referencia.
+// La referencia es la última reunión que el confirmer da por ocurrida, no la
+// última cita: un no-show o una cancelación no generan fila de asistencia, y
+// medir contra ellas haría saltar la alerta en semanas de poco volumen.
+const ultimaAsistida = ccRows => ultimaFecha(ccRows.filter(ccAsistio));
+
 function corteLogObsoleto(clRows, ccRows) {
-  const log = ultimaFecha(clRows), citas = ultimaFecha(ccRows);
+  const log = ultimaFecha(clRows), citas = ultimaAsistida(ccRows);
   if (!log || !citas) return '';
   // Un log adelantado da una diferencia negativa, así que no necesita guarda.
   return diasEntre(log, citas) > DIAS_FUENTE_OBSOLETA ? log : '';
@@ -1334,12 +1339,12 @@ function setEmbudoModo(modo) {
 function renderFrescura() {
   const el = document.getElementById('embudo-frescura');
   if (!el) return;
-  const citas = ultimaFecha(RAW_CC), log = ultimaFecha(RAW_CL);
+  const citas = ultimaAsistida(RAW_CC), log = ultimaFecha(RAW_CL);
   if (!citas && !log) { el.textContent = ''; return; }
   const corte = corteLogObsoleto(RAW_CL, RAW_CC);
   const atraso = citas && log ? diasEntre(log, citas) : 0;
-  const partes = ['Fuentes: citas del confirmer al '+(citas ? fmtDate(citas) : 'n/d'),
-                  'reuniones del CLOSER_LOG al '+(log ? fmtDate(log) : 'n/d')];
+  const partes = ['Fuentes: última reunión según el confirmer '+(citas ? fmtDate(citas) : 'n/d'),
+                  'en el CLOSER_LOG '+(log ? fmtDate(log) : 'n/d')];
   el.className = 'embudo-nota' + (corte ? ' embudo-alerta' : '');
   el.textContent = partes.join(' · ')
     + (corte ? ' — atrasado '+atraso+' días: las semanas posteriores quedan sin dato, no en cero.' : '.');
