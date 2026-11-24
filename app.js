@@ -212,40 +212,50 @@ const ccResuelta = r => r.Estado === 'Confirmado'
   && String(r.Confirmer||'').trim().toLowerCase() === CONFIRMER_RUTINA;
 const ccAsistio = r => ccResuelta(r) && !RE_NO_ASISTIO.test(String(r.Notas||''));
 
-// Llave de cruce: mail + día. El día va como número para poder comparar fechas
-// vecinas; el nombre no sirve de respaldo porque las dos hojas lo escriben
-// distinto ("Danitza" en una, "Danitza Navarrete" en la otra).
+// Llaves de cruce: mail + día y primer nombre + día. El día va como número para
+// comparar fechas vecinas. El mail solo no alcanza: la rutina de llamadas anota
+// el que sale en la transcripción y GHL el del formulario, y no siempre son el
+// mismo (Noelia: noeliablanco@kellerwilliams.com en el log, noenaty36@gmail.com en
+// GHL). El nombre completo tampoco, porque cada hoja lo escribe distinto
+// ("Danitza" / "Danitza Navarrete"), pero el primer nombre sí coincide.
 const mailDe = r => String(r.Mail||'').trim().toLowerCase();
-const claveCita = (mail, dia) => mail + '@' + dia;
+const primerNombre = r => {
+  const t = String(r.Nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().match(/[a-z]+/);
+  return t && t[0].length >= 3 ? t[0] : '';
+};
+const claveCita = (tipo, valor, dia) => tipo + ':' + valor + '@' + dia;
 
 // El CLOSER_LOG manda en el conteo: cada reunión registrada cuenta, sin agrupar
 // por lead (dos reuniones con la misma persona el mismo día son dos). La hoja del
 // confirmer solo suma las citas asistidas que el log no tiene, para que una misma
 // reunión no se cuente dos veces.
 function contarAsistencias(ccRows, clRows) {
-  const enLog = new Set();       // mail@día de cada reunión que el log registró
+  const enLog = new Set();       // llaves de cada reunión que el log registró
   const diasDelLog = new Set();  // días en que el log alcanzó a escribir algo
   let n = 0;
   for (const r of clRows) {
     diasDelLog.add(r.Fecha);
     if (!esAsistencia(r)) continue;
     n++;
-    const mail = mailDe(r);
-    if (mail) enLog.add(claveCita(mail, diasDesdeCivil(r.Fecha)));
+    const dia = diasDesdeCivil(r.Fecha), mail = mailDe(r), nombre = primerNombre(r);
+    if (mail) enLog.add(claveCita('m', mail, dia));
+    if (nombre) enLog.add(claveCita('n', nombre, dia));
   }
   for (const r of ccRows) {
     if (!ccAsistio(r)) continue;
-    const mail = mailDe(r);
-    // Una fila sin mail no se puede cruzar, así que no hay cómo descartar que el
-    // log ya la tenga. Solo suma donde el log no escribió nada ese día, que es
-    // justo el agujero que esta unión viene a tapar.
-    if (!mail) { if (!diasDelLog.has(r.Fecha)) n++; continue; }
-    const dia = diasDesdeCivil(r.Fecha);
+    const dia = diasDesdeCivil(r.Fecha), mail = mailDe(r), nombre = primerNombre(r);
     let yaEsta = false;
     for (let k = -DIAS_TOLERANCIA_CRUCE; k <= DIAS_TOLERANCIA_CRUCE && !yaEsta; k++) {
-      yaEsta = enLog.has(claveCita(mail, dia + k));
+      yaEsta = (mail && enLog.has(claveCita('m', mail, dia + k)))
+            || (nombre && enLog.has(claveCita('n', nombre, dia + k)));
     }
-    if (!yaEsta) n++;
+    if (yaEsta) continue;
+    // Una fila sin mail que tampoco cruzó por nombre no se puede descartar como
+    // repetida: solo suma donde el log no escribió nada ese día, que es justo el
+    // agujero que esta unión viene a tapar.
+    if (!mail && diasDelLog.has(r.Fecha)) continue;
+    n++;
   }
   return n;
 }

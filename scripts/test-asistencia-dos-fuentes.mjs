@@ -97,16 +97,31 @@ const scenarios = [
     assert.equal(totales([cita()], [log({Fecha: '2026-11-20'})])[0], 2);
     assert.equal(totales([cita()], [log({Fecha: '2026-11-16'})])[0], 2);
     // La tolerancia cruza por mail, no por cercanía a secas.
-    assert.equal(totales([cita()], [log({Fecha: '2026-11-19', Mail: 'otro@x.cl'})])[0], 2);
+    assert.equal(totales([cita()], [log({Fecha: '2026-11-19', Mail: 'otro@x.cl', Nombre: 'Otro'})])[0], 2);
   }],
 
-  ['dos leads con el mismo nombre y distinto mail no se fusionan', () => {
-    // Caso real: el 14/11 la hoja trae dos "Aurora" con mails distintos.
+  ['mismo primer nombre el mismo día es la misma persona aunque cambie el mail', () => {
+    // Caso real del 18/11: la rutina de llamadas anotó a Noelia con el mail de la
+    // transcripción y GHL tiene el del formulario. Es una reunión, no dos.
+    assert.equal(totales([cita({Mail: 'noenaty36@gmail.com', Nombre: 'Noelia'})],
+      [log({Mail: 'noeliablanco@kellerwilliams.com', Nombre: 'Noelia Blanco (Keller Williams, Montevideo)'})])[0], 1);
+    // Los dos "Aurora" del 14/11 con mails distintos eran también una sola persona.
     const a = {Mail: 'carbajalaurora@gmail.com', Nombre: 'Aurora'};
-    const b = {Mail: 'carbajalcabello@gmail.com', Nombre: 'Aurora'};
+    const b = {Mail: 'carbajalcabello@gmail.com', Nombre: 'Aurora Carbajal'};
+    assert.equal(totales([cita(b)], [log(a)])[0], 1);
+    // Tildes y mayúsculas no cambian el cruce.
+    assert.equal(totales([cita({Mail: 'x@x.cl', Nombre: 'MARÍA'})],
+      [log({Mail: 'y@y.cl', Nombre: 'Maria Dary Cardona'})])[0], 1);
+    // Sin log no hay con qué fusionar: cada cita asistida cuenta.
     assert.deepEqual(totales([cita(a), cita(b)], []), [2, 2, 2]);
-    // Y si el log solo tiene una, la otra la aporta la hoja sin duplicar.
-    assert.deepEqual(totales([cita(a), cita(b)], [log(a)]), [2, 2, 2]);
+  }],
+
+  ['nombres distintos el mismo día no se fusionan', () => {
+    assert.equal(totales([cita({Mail: 'a@x.cl', Nombre: 'Daniel'})],
+      [log({Mail: 'b@x.cl', Nombre: 'Silvia Perez'})])[0], 2);
+    // Un nombre de menos de tres letras no sirve de llave.
+    assert.equal(totales([cita({Mail: 'a@x.cl', Nombre: 'Jo'})],
+      [log({Mail: 'b@x.cl', Nombre: 'Jo'})])[0], 2);
   }],
 
   ['el log le gana a la nota: si hay transcripción, la reunión ocurrió', () => {
