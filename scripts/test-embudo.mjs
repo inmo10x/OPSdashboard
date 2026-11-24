@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+// La ruta opcional permite verificar mutaciones sin modificar app.js.
+const source = readFileSync(process.argv[2] || new URL('../app.js', import.meta.url), 'utf8');
 function extract(start, end) {
   const from = source.indexOf(start), to = source.indexOf(end, from);
   assert.ok(from >= 0 && to > from, `No se encontró ${start}`);
@@ -10,7 +11,7 @@ function extract(start, end) {
 }
 const elements = {};
 const c = vm.createContext({
-  RAW_ES: [], RAW_MDIA: [], dateFrom: '', dateTo: '',
+  RAW_ES: [], RAW_MDIA: [], RAW_CC: [], RAW_CL: [], dateFrom: '', dateTo: '',
   document: { querySelectorAll: () => [], getElementById: id => elements[id] ||= {} },
   // Ninguna fecha de la hoja debe convertirse a Date, ni siquiera en otra zona horaria.
   Date: class {
@@ -18,7 +19,9 @@ const c = vm.createContext({
     toISOString() { return '2026-10-27T00:00:00.000Z'; }
   }
 });
-vm.runInContext(extract('const EMBUDO_QUIEBRE =', 'function showPage(')
+vm.runInContext(extract('const DIAS_FUENTE_OBSOLETA', '\n')
+  + extract('function diasDesdeCivil(', '\n// ── ASISTENCIA')
+  + extract('const EMBUDO_QUIEBRE =', 'function showPage(')
   + extract('function inRange(', 'function weekOf(')
   + extract('function fmtDate(', 'function pct('), c);
 const leadKey = 'Leads (definición reescrita)';
@@ -136,6 +139,46 @@ const scenarios = [
     c.RAW_ES[1].fin='2026-<script>'; c.renderEmbudo();
     assert.match(elements['embudo-table-wrap'].innerHTML,/&lt;script&gt;/);
   }]
+,
+  ['días exactos sin Date, y el corte solo cuando el log se atrasa', () => {
+    assert.equal(vm.runInContext("diasEntre('2026-11-14','2026-11-23')", c), 9);
+    assert.equal(vm.runInContext("diasEntre('2026-02-28','2026-03-01')", c), 1, '2026 no es bisiesto');
+    assert.equal(vm.runInContext("diasEntre('2024-02-28','2024-03-01')", c), 2, '2024 sí lo es');
+    assert.equal(vm.runInContext("diasEntre('2025-12-30','2026-01-02')", c), 3, 'cruza el año');
+    const corte = (log, citas) => {
+      c.cl = log.map(Fecha => ({Fecha})); c.cc = citas.map(Fecha => ({Fecha}));
+      return vm.runInContext('corteLogObsoleto(cl, cc)', c);
+    };
+    assert.equal(corte([], []), '', 'sin datos no se inventa un corte');
+    assert.equal(corte(['2026-11-21'], ['2026-11-21']), '', 'al día');
+    assert.equal(corte(['2026-11-19'], ['2026-11-21']), '', 'dos días de atraso se tolera');
+    assert.equal(corte(['2026-11-18'], ['2026-11-21']), '', 'el umbral exacto todavía se tolera');
+    assert.equal(corte(['2026-11-17'], ['2026-11-21']), '2026-11-17', 'un día más ya no');
+    assert.equal(corte(['2026-11-14'], ['2026-11-21']), '2026-11-14', 'nueve días no');
+    assert.equal(corte(['2026-11-22'], ['2026-11-21']), '', 'un log adelantado no es un atraso');
+  }],
+
+  ['más allá del log las reuniones quedan sin dato, no en cero', () => {
+    const semana = (inicio, fin, asistencias) => ({inicio, fin, asistencias, show: 50,
+      cierre: 25, costoAsistencia: 10, confirmadas: 4, cierres: 1, inversion: 40, mes: 11});
+    const filas = [semana('2026-11-09','2026-11-15',4), semana('2026-11-16','2026-11-22',0)];
+    c.filas = filas; c.corte = '2026-11-14';
+    const out = vm.runInContext('embudoSinDato(filas, corte)', c);
+    // La semana que termina después del corte pierde todo lo derivado del log.
+    for (const k of ['asistencias','show','cierre','costoAsistencia']) {
+      assert.equal(out[1][k], null, `semana posterior: ${k}`);
+      assert.equal(out[0][k], null, `semana que cruza el corte: ${k}`);
+    }
+    // Lo que no viene del log se conserva intacto.
+    assert.equal(out[1].confirmadas, 4);
+    assert.equal(out[1].cierres, 1);
+    // Sin corte no se toca nada.
+    c.corte = '';
+    assert.deepEqual(vm.runInContext('embudoSinDato(filas, corte)', c), filas);
+    // Y una semana cerrada antes del corte se mantiene.
+    c.filas = [semana('2026-11-02','2026-11-08',6)];
+    assert.equal(vm.runInContext('embudoSinDato(filas, corte = "2026-11-14")', c)[0].asistencias, 6);
+  }],
 ];
 for (const [name, run] of scenarios) {
   try { run(); console.log(`PASS ${name}`); }

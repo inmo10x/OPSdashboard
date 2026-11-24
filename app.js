@@ -8,8 +8,27 @@ const META_MENSUAL_USD = 40000;
 const UMBRAL_ASISTENCIAS_JUZGABLES = 10;
 const UMBRAL_BAJA_ACTIVIDAD = 6;
 
-// Eventos que cuentan como asistencia a una reunión.
-const EVENTOS_ASISTENCIA = ['asistencia','cierre','perdido','seguimiento'];
+// Eventos del CLOSER_LOG que cuentan como asistencia a una reunión. "Reserva" es
+// un resultado comercial de una reunión que ocurrió, no un agendamiento: cuenta.
+// "Agenda" no, que es la cita tomada y todavía sin realizar.
+const EVENTOS_ASISTENCIA = ['asistencia','cierre','perdido','seguimiento','reserva'];
+
+// CALL_CONFIRMER_LOG: la rutina metricas-diarias-ghl escribe sus filas con este
+// Confirmer y codifica el no-show como una nota. Solo en esas filas el estado
+// significa asistencia: en las filas humanas anteriores Notas es texto libre
+// ("Santiago", "No contesta") y no se puede inferir nada de que esté vacía.
+const CONFIRMER_RUTINA = 'crm';
+
+// Una fuente que dejó de cargarse no reporta ceros: reporta ausencia. Si el
+// CLOSER_LOG queda más días que esto por detrás de las citas del confirmer, las
+// semanas que pasan de su última fecha se marcan sin dato en vez de como 0.
+const DIAS_FUENTE_OBSOLETA = 3;
+const RE_NO_ASISTIO = /no\s*asisti/i;
+
+// Cruce entre las dos hojas: el confirmer guarda la fecha agendada y el CLOSER_LOG
+// la que trae la transcripción, que a veces cae al día siguiente. Un corrimiento
+// de hasta esto es la misma reunión, no dos.
+const DIAS_TOLERANCIA_CRUCE = 1;
 
 // Bonificación mensual por contrato: % del cash cobrado del mes.
 // Estas personas no aparecen en las hojas de datos, por eso se configuran acá.
@@ -169,6 +188,67 @@ function tipoStyle(t) {
 //  CORE STATS (compartido entre período actual y anterior)
 // ═══════════════════════════════════════════════
 const esAsistencia = r => EVENTOS_ASISTENCIA.includes(r.Evento.trim().toLowerCase());
+
+// Días desde una época fija para una fecha AAAA-MM-DD, sin construir Date: las
+// fechas de las hojas llegan en zona America/Los_Angeles y pasarlas por un Date
+// local las corre un día. Sirve para restar fechas y para comparar cercanía.
+function diasDesdeCivil(iso) {
+  const m = Number(iso.slice(5,7)), d = Number(iso.slice(8,10));
+  const y = Number(iso.slice(0,4)) - (m <= 2 ? 1 : 0);
+  const era = Math.floor(y / 400), yoe = y - era * 400;
+  const doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+  const doe = yoe * 365 + Math.floor(yoe/4) - Math.floor(yoe/100) + doy;
+  return era * 146097 + doe - 719468;
+}
+const diasEntre = (desde, hasta) => diasDesdeCivil(hasta) - diasDesdeCivil(desde);
+
+// ── ASISTENCIA: dos fuentes, unión ────────────────────────────────────────────
+// CALL_CONFIRMER_LOG lo alimenta la rutina diaria desde GHL y se autocorrige a 7
+// días; CLOSER_LOG lo alimenta el análisis de transcripciones. Ninguna de las dos
+// inventa asistencias: las dos fallan por omisión (GHL cuando el closer no marca
+// la cita, el log cuando la rutina de transcripciones se cae). Por eso basta que
+// una de las dos la afirme, y el silencio de ambas no se cuenta como ausencia.
+const ccResuelta = r => r.Estado === 'Confirmado'
+  && String(r.Confirmer||'').trim().toLowerCase() === CONFIRMER_RUTINA;
+const ccAsistio = r => ccResuelta(r) && !RE_NO_ASISTIO.test(String(r.Notas||''));
+
+// Llave de cruce: mail + día. El día va como número para poder comparar fechas
+// vecinas; el nombre no sirve de respaldo porque las dos hojas lo escriben
+// distinto ("Danitza" en una, "Danitza Navarrete" en la otra).
+const mailDe = r => String(r.Mail||'').trim().toLowerCase();
+const claveCita = (mail, dia) => mail + '@' + dia;
+
+// El CLOSER_LOG manda en el conteo: cada reunión registrada cuenta, sin agrupar
+// por lead (dos reuniones con la misma persona el mismo día son dos). La hoja del
+// confirmer solo suma las citas asistidas que el log no tiene, para que una misma
+// reunión no se cuente dos veces.
+function contarAsistencias(ccRows, clRows) {
+  const enLog = new Set();       // mail@día de cada reunión que el log registró
+  const diasDelLog = new Set();  // días en que el log alcanzó a escribir algo
+  let n = 0;
+  for (const r of clRows) {
+    diasDelLog.add(r.Fecha);
+    if (!esAsistencia(r)) continue;
+    n++;
+    const mail = mailDe(r);
+    if (mail) enLog.add(claveCita(mail, diasDesdeCivil(r.Fecha)));
+  }
+  for (const r of ccRows) {
+    if (!ccAsistio(r)) continue;
+    const mail = mailDe(r);
+    // Una fila sin mail no se puede cruzar, así que no hay cómo descartar que el
+    // log ya la tenga. Solo suma donde el log no escribió nada ese día, que es
+    // justo el agujero que esta unión viene a tapar.
+    if (!mail) { if (!diasDelLog.has(r.Fecha)) n++; continue; }
+    const dia = diasDesdeCivil(r.Fecha);
+    let yaEsta = false;
+    for (let k = -DIAS_TOLERANCIA_CRUCE; k <= DIAS_TOLERANCIA_CRUCE && !yaEsta; k++) {
+      yaEsta = enLog.has(claveCita(mail, dia + k));
+    }
+    if (!yaEsta) n++;
+  }
+  return n;
+}
 const esRenov = r => r.Tipo.toLowerCase().includes('renov');
 
 // Filtra las 5 fuentes de datos por un predicado de fecha y calcula los agregados base.
@@ -179,9 +259,10 @@ function computeCoreStats(inRangeFn) {
   const co = RAW_C.filter(r  => inRangeFn(r.Fecha));
   const cl = RAW_CL.filter(r => inRangeFn(r.Fecha));
 
-  // Agendas = confirmados por Call Confirmer; Asistencias = reuniones del CLOSER_LOG según CONFIG
+  // Agendas = confirmados por Call Confirmer (las canceladas quedan fuera, así el
+  // show rate mide asistencia sobre citas que seguían en pie).
   const totAg = cc.filter(r=>r.Estado==='Confirmado').length;
-  const totAs = cl.filter(esAsistencia).length;
+  const totAs = contarAsistencias(cc, cl);
   const totCash  = co.reduce((s,r)=>s+r.Monto,0);
   const totVenta = v.reduce((s,r)=>s+r.Venta,0);
   const vNuevas  = v.filter(r=>!esRenov(r));
@@ -269,7 +350,7 @@ function computeStats() {
     const ccRows=cc.filter(r=>r.Closer===c&&r.Estado==='Confirmado');
     byCloser[c]={
       ag:ccRows.length,
-      as:clRows.filter(esAsistencia).length,
+      as:contarAsistencias(ccRows, clRows),
       ci:rows.reduce((s,r)=>s+r.Cierres,0),
       se:rows.reduce((s,r)=>s+r.Seguimientos,0),
       cash:coRows.reduce((s,r)=>s+r.Monto,0),
@@ -1106,6 +1187,25 @@ function embudoNumero(value) {
 function embudoDivision(a, b) {
   return a == null || b == null || b === 0 ? null : a / b;
 }
+const ultimaFecha = rows => rows.reduce((max,r) => r.Fecha > max ? r.Fecha : max, '');
+
+// Hasta qué fecha el CLOSER_LOG es creíble; '' si viene al día. Se mide contra las
+// citas del confirmer, que las carga otra rutina y por eso sirven de referencia.
+function corteLogObsoleto(clRows, ccRows) {
+  const log = ultimaFecha(clRows), citas = ultimaFecha(ccRows);
+  if (!log || !citas) return '';
+  // Un log adelantado da una diferencia negativa, así que no necesita guarda.
+  return diasEntre(log, citas) > DIAS_FUENTE_OBSOLETA ? log : '';
+}
+
+// Las columnas de reuniones de EMBUDO_SEMANAL se derivan del CLOSER_LOG: más allá
+// de su última fecha no son un cero medido, son un dato que no llegó.
+function embudoSinDato(rows, corte) {
+  if (!corte) return rows;
+  return rows.map(r => r.fin > corte
+    ? {...r, asistencias: null, show: null, cierre: null, costoAsistencia: null}
+    : r);
+}
 function parseEmbudo(rows) {
   if (!rows.length) return [];
   const keys = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k.startsWith('Leads ('))))];
@@ -1229,6 +1329,21 @@ function setEmbudoModo(modo) {
   embudoModo = modo === 'mensual' ? 'mensual' : 'semanal';
   renderEmbudo();
 }
+// Cada fuente dice hasta cuándo llegó. Una que se cayó deja de ser un cero y pasa
+// a ser un aviso: así una rutina detenida se nota al día siguiente, no a los nueve.
+function renderFrescura() {
+  const el = document.getElementById('embudo-frescura');
+  if (!el) return;
+  const citas = ultimaFecha(RAW_CC), log = ultimaFecha(RAW_CL);
+  if (!citas && !log) { el.textContent = ''; return; }
+  const corte = corteLogObsoleto(RAW_CL, RAW_CC);
+  const atraso = citas && log ? diasEntre(log, citas) : 0;
+  const partes = ['Fuentes: citas del confirmer al '+(citas ? fmtDate(citas) : 'n/d'),
+                  'reuniones del CLOSER_LOG al '+(log ? fmtDate(log) : 'n/d')];
+  el.className = 'embudo-nota' + (corte ? ' embudo-alerta' : '');
+  el.textContent = partes.join(' · ')
+    + (corte ? ' — atrasado '+atraso+' días: las semanas posteriores quedan sin dato, no en cero.' : '.');
+}
 function renderEmbudo() {
   document.querySelectorAll('[data-embudo-modo]').forEach(b => {
     const on = b.dataset.embudoModo === embudoModo;
@@ -1241,6 +1356,7 @@ function renderEmbudo() {
     renderEmbudoGraficos([], embudoModo);
     return;
   }
+  renderFrescura();
   const weeks = RAW_ES.filter(r => inRange(r.inicio));
   const rows = embudoModo === 'mensual' ? embudoMensual(weeks) : weeks;
   renderEmbudoGraficos(rows, embudoModo);
@@ -1459,6 +1575,8 @@ function ingest(texts, fromCache, cacheTs) {
       .map(r => ({
         Fecha: toDateAS(r['Fecha']), Confirmer: String(r['Confirmer']),
         Estado: String(r['Estado']||''), Closer: String(r['Closer']||''),
+        Mail: String(r['Lead Mail']||''), Nombre: String(r['Nombre Lead/Cliente']||''),
+        Notas: String(r['Notas']||''),
       })).filter(r => r.Fecha);
 
     RAW_CL = (texts['CLOSER_LOG']||[])
@@ -1466,6 +1584,7 @@ function ingest(texts, fromCache, cacheTs) {
       .map(r => ({
         Fecha: toDateAS(r['Fecha']), Closer: String(r['Closer']),
         Evento: String(r['Evento']||''),
+        Mail: String(r['Lead Mail']||''), Nombre: String(r['Nombre Lead/Cliente']||''),
       })).filter(r => r.Fecha && r.Closer);
 
     RAW_V = (texts['VENTAS']||[])
@@ -1502,7 +1621,8 @@ function ingest(texts, fromCache, cacheTs) {
     RAW_MDIA = parseMetaDiario(texts['META_DIARIO'] || []);
     RAW_ES = [];
     embudoError = '';
-    try { RAW_ES = parseEmbudo(texts['EMBUDO_SEMANAL'] || []); }
+    try { RAW_ES = embudoSinDato(parseEmbudo(texts['EMBUDO_SEMANAL'] || []),
+                                 corteLogObsoleto(RAW_CL, RAW_CC)); }
     catch (err) { embudoError = err.message; }
 
     const allDates=[...RAW_MD,...RAW_CC,...RAW_CL,...RAW_C].map(r=>r.Fecha)

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+// La ruta opcional permite verificar mutaciones sin modificar app.js.
+const source = readFileSync(process.argv[2] || new URL('../app.js', import.meta.url), 'utf8');
 // Evaluar fechas, agregados y tarjetas sin arrancar el dashboard ni usar la red.
 function extract(start, end) {
   const from = source.indexOf(start);

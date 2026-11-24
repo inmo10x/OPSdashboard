@@ -18,6 +18,7 @@ const c = vm.createContext({
 });
 vm.runInContext(extract('const META_MENSUAL_USD', '//  RAW DATA')
   + extract('function weekOf(', '//  CHART INSTANCES')
+  + extract('const ccResuelta =', 'function computeCoreStats(')
   + extract('function computeStats(', '//  RENDER ALL')
   + extract('function renderClosers(', 'const TARGET_SHOW')
   + extract('function renderRangeLabel(', 'function renderStrip(')
